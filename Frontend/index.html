@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="<!-- figma:lang -->">
+  <head>
+    <!-- figma:head-start -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title><!-- figma:title --></title>
+    <!-- Telegram WebApp SDK. Safe to load outside Telegram too: it simply
+         leaves window.Telegram undefined, and src/telegram.ts falls back
+         to dev-mode identity in that case. -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- figma:head-end -->
+  </head>
+  <body>
+    <!-- figma:body-start -->
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <!-- figma:body-end -->
+  </body>
+</html>

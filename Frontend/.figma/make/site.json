@@ -1,0 +1,10 @@
+{
+  "description": "Delivers premium icon-based designs without emojis or AI patterns, offering a sleek, professional visual experience for designers and businesses.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: careermatch
+      POSTGRES_USER: careermatch
+      POSTGRES_PASSWORD: careermatch
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U careermatch"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ./Backend
+    restart: unless-stopped
+    env_file:
+      - ./Backend/.env
+    environment:
+      # Overrides the .env value so the backend reaches Postgres by its
+      # docker-compose service name instead of "localhost".
+      DATABASE_URL: postgres://careermatch:careermatch@db:5432/careermatch
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,backend
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./Backend:/app
+
+  frontend:
+    build: ./Frontend
+    restart: unless-stopped
+    env_file:
+      - ./Frontend/.env
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000/api
+    depends_on:
+      - backend
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./Frontend:/app
+      - frontend_node_modules:/app/node_modules
+
+volumes:
+  db_data:
+  frontend_node_modules:
