@@ -1,0 +1,58 @@
+# Deployment credentials & local environment files
+.deploy.env
+.deploy.env.*
+!.deploy.env.example
+.env
+.env.*
+!.env.example
+
+# macOS metadata
+.DS_Store
+**/.DS_Store
+
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+.venv/
+Backend/venv/
+Backend/.venv/
+ENV/
+env/
+
+# Django staticfiles collection & SQLite
+Backend/staticfiles/
+Backend/db.sqlite3
+*.sqlite3
+
+# Node / Frontend
+node_modules/
+Frontend/node_modules/
+Frontend/dist/
+Frontend/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Vercel
+.vercel
+Frontend/.vercel

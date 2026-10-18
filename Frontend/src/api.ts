@@ -8,7 +8,8 @@ import type {
 } from "./types";
 import { getAuthHeaders } from "./telegram";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
+const API_BASE_URL = rawBaseUrl.replace(/\/+$/, "");
 
 /** Thrown for backend errors; carries the HTTP status so callers (e.g. the
  * "onboarding required" 409 from /jobs/recommendations/) can branch on it. */

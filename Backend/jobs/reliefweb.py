@@ -181,10 +181,11 @@ def fetch_jobs(
 
 def _parse_date(value: str | None) -> dt.date | None:
     """Parse an ISO-8601 date string; returns None for empty/invalid input."""
-    if not value:
+    if not value or not isinstance(value, str):
         return None
+    cleaned = value.strip()
     try:
-        return dt.date.fromisoformat(value[:10])
+        return dt.date.fromisoformat(cleaned[:10])
     except (ValueError, TypeError):
         return None
 
@@ -220,10 +221,18 @@ def _guess_field(category_names: list[str]) -> str | None:
 def normalize_job(raw: dict) -> dict | None:
     """Convert one raw ReliefWeb report into Job model kwargs.
 
-    Returns None if the record is missing essential fields (title or url) —
+    Returns None if the record is missing essential fields (id, title, or url) —
     such records are skipped entirely rather than stored with invented data.
     All optional fields are handled safely; missing data maps to null/None.
     """
+    if not isinstance(raw, dict):
+        return None
+
+    raw_id = raw.get("id")
+    if raw_id is None or str(raw_id).strip() == "":
+        logger.warning("Skipping ReliefWeb report: missing or empty 'id'")
+        return None
+
     try:
         fields = raw.get("fields", {}) or {}
         title = (fields.get("title") or "").strip()
@@ -232,28 +241,40 @@ def normalize_job(raw: dict) -> dict | None:
         if not title or not url:
             logger.warning(
                 "Skipping ReliefWeb report %s: missing title or url",
-                raw.get("id"),
+                raw_id,
             )
             return None
+
+        # Clean excess internal whitespace
+        clean_title = " ".join(title.split())
 
         sources = fields.get("source") or []
         countries = fields.get("country") or []
         categories = fields.get("career_categories") or []
         types = fields.get("type") or []
 
-        organization = sources[0]["name"] if sources else None
-        country = countries[0]["name"] if countries else None
+        organization = None
+        if sources and isinstance(sources[0], dict) and sources[0].get("name"):
+            organization = " ".join(str(sources[0]["name"]).split()) or None
 
-        category_names = [c["name"] for c in categories if c.get("name")]
-        type_names = [t["name"] for t in types if t.get("name")]
+        country = None
+        if countries and isinstance(countries[0], dict) and countries[0].get("name"):
+            country = " ".join(str(countries[0]["name"]).split()) or None
+
+        category_names = [
+            c["name"] for c in categories if isinstance(c, dict) and c.get("name")
+        ]
+        type_names = [
+            t["name"] for t in types if isinstance(t, dict) and t.get("name")
+        ]
 
         dates = fields.get("date") or {}
         body = (fields.get("body") or "").strip()
 
         return {
             "source": "reliefweb",
-            "source_id": str(raw["id"]),
-            "title": title,
+            "source_id": str(raw_id).strip(),
+            "title": clean_title,
             "organization": organization,
             # ReliefWeb job reports rarely give city-level location; country
             # is used for both 'location' and 'country' fields.
@@ -273,7 +294,7 @@ def normalize_job(raw: dict) -> dict | None:
     except Exception as exc:  # noqa: BLE001
         logger.error(
             "Unexpected error normalising ReliefWeb report %s: %s",
-            raw.get("id"),
+            raw_id,
             exc,
         )
         return None

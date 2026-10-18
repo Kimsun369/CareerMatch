@@ -23,8 +23,14 @@ The AuthenticationTests class uses ``@override_settings(DEBUG=True)`` to
 re-enable the debug header path and test it directly.
 """
 
+import datetime as dt
+import io
+from unittest.mock import patch
+
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from jobs.models import Job, SavedJob, UserPreference
@@ -832,3 +838,152 @@ class AuthenticationTests(TestCase):
         self.assertEqual(resp.status_code, 403)
         # No user should have been created
         self.assertFalse(TelegramUser.objects.filter(telegram_id=300005).exists())
+
+
+# ── Ingest ReliefWeb Command Tests ──────────────────────────────────────────
+
+class IngestReliefWebCommandTests(TestCase):
+    def setUp(self):
+        self.sample_raw_jobs = [
+            {
+                "id": "99001",
+                "fields": {
+                    "title": "Software   Engineer ",
+                    "url": "https://reliefweb.int/job/99001",
+                    "source": [{"name": "UN  OCHA"}],
+                    "country": [{"name": "Cambodia"}],
+                    "career_categories": [{"name": "Information and Communications Technology"}],
+                    "type": [{"name": "Job"}],
+                    "date": {"created": "2026-03-01", "closing": "2026-04-01"},
+                    "body": "Design and build web platforms.",
+                },
+            },
+            {
+                "id": "99002",
+                "fields": {
+                    "title": "Health Coordinator",
+                    "url": "https://reliefweb.int/job/99002",
+                    "source": [{"name": "WHO"}],
+                    "country": [{"name": "Cambodia"}],
+                    "career_categories": [{"name": "Health"}],
+                    "type": [{"name": "Internship"}],
+                    "date": {"created": "2026-03-02", "closing": "2026-04-15"},
+                    "body": "Coordinate health programs.",
+                },
+            },
+        ]
+
+    @patch("jobs.management.commands.ingest_reliefweb.fetch_jobs")
+    def test_ingest_creates_new_jobs(self, mock_fetch):
+        mock_fetch.return_value = self.sample_raw_jobs
+        out = io.StringIO()
+        call_command("ingest_reliefweb", limit=2, pages=1, stdout=out)
+
+        self.assertEqual(Job.objects.count(), 2)
+        job1 = Job.objects.get(source_id="99001")
+        self.assertEqual(job1.title, "Software Engineer")
+        self.assertEqual(job1.organization, "UN OCHA")
+        self.assertEqual(job1.field, "tech_it")
+        self.assertEqual(job1.job_type, "full_time")
+        self.assertTrue(job1.is_active)
+
+        job2 = Job.objects.get(source_id="99002")
+        self.assertEqual(job2.field, "health_ngo")
+        self.assertEqual(job2.job_type, "internship")
+
+    @patch("jobs.management.commands.ingest_reliefweb.fetch_jobs")
+    def test_ingest_idempotent_no_duplicate_records(self, mock_fetch):
+        mock_fetch.return_value = self.sample_raw_jobs
+        out = io.StringIO()
+        call_command("ingest_reliefweb", limit=2, pages=1, stdout=out)
+        self.assertEqual(Job.objects.count(), 2)
+
+        # Second run with exact same data must not duplicate and must skip writes
+        out2 = io.StringIO()
+        call_command("ingest_reliefweb", limit=2, pages=1, stdout=out2)
+        self.assertEqual(Job.objects.count(), 2)
+        output = out2.getvalue()
+        self.assertIn("Unchanged (Skipped)   : 2", output)
+        self.assertIn("Created (New)         : 0", output)
+
+    @patch("jobs.management.commands.ingest_reliefweb.fetch_jobs")
+    def test_ingest_updates_modified_fields(self, mock_fetch):
+        mock_fetch.return_value = self.sample_raw_jobs
+        call_command("ingest_reliefweb", limit=2, pages=1)
+
+        modified_jobs = [
+            {
+                "id": "99001",
+                "fields": {
+                    "title": "Senior Software Engineer",
+                    "url": "https://reliefweb.int/job/99001",
+                    "source": [{"name": "UN OCHA Global"}],
+                    "country": [{"name": "Cambodia"}],
+                    "career_categories": [{"name": "Information and Communications Technology"}],
+                    "type": [{"name": "Job"}],
+                    "date": {"created": "2026-03-01", "closing": "2026-05-01"},
+                    "body": "Updated job description.",
+                },
+            }
+        ]
+        mock_fetch.return_value = modified_jobs
+        out = io.StringIO()
+        call_command("ingest_reliefweb", limit=1, pages=1, stdout=out)
+
+        self.assertEqual(Job.objects.count(), 2)
+        updated_job = Job.objects.get(source_id="99001")
+        self.assertEqual(updated_job.title, "Senior Software Engineer")
+        self.assertEqual(updated_job.organization, "UN OCHA Global")
+        self.assertEqual(updated_job.description, "Updated job description.")
+        output = out.getvalue()
+        self.assertIn("Updated (Modified)    : 1", output)
+
+    @patch("jobs.management.commands.ingest_reliefweb.fetch_jobs")
+    def test_ingest_skips_intra_run_duplicates(self, mock_fetch):
+        mock_fetch.return_value = [self.sample_raw_jobs[0], self.sample_raw_jobs[0]]
+        out = io.StringIO()
+        call_command("ingest_reliefweb", limit=2, pages=1, stdout=out)
+
+        self.assertEqual(Job.objects.count(), 1)
+        output = out.getvalue()
+        self.assertIn("Intra-run Duplicates  : 1", output)
+
+    @patch("jobs.management.commands.ingest_reliefweb.fetch_jobs")
+    def test_deactivate_missing_flag(self, mock_fetch):
+        yesterday = timezone.now().date() - dt.timedelta(days=1)
+        Job.objects.create(
+            source="reliefweb",
+            source_id="99999",
+            title="Expired Job",
+            source_url="https://reliefweb.int/job/99999",
+            closing_date=yesterday,
+            is_active=True,
+        )
+        mock_fetch.return_value = []
+        out = io.StringIO()
+        call_command("ingest_reliefweb", limit=10, pages=1, deactivate_missing=True, stdout=out)
+
+        expired_job = Job.objects.get(source_id="99999")
+        self.assertFalse(expired_job.is_active)
+        self.assertIn("Deactivated Stale     : 1", out.getvalue())
+
+    def test_normalize_job_missing_required_fields(self):
+        # Missing id
+        self.assertIsNone(normalize_job({"fields": {"title": "A", "url": "http://x"}}))
+        # Missing title
+        self.assertIsNone(normalize_job({"id": "1", "fields": {"url": "http://x"}}))
+        # Missing url
+        self.assertIsNone(normalize_job({"id": "1", "fields": {"title": "A"}}))
+        # Invalid date format handled gracefully
+        result = normalize_job({
+            "id": "1",
+            "fields": {
+                "title": "Job Title",
+                "url": "https://reliefweb.int/1",
+                "date": {"created": "invalid-date", "closing": ""},
+            },
+        })
+        self.assertIsNotNone(result)
+        self.assertIsNone(result["published_date"])
+        self.assertIsNone(result["closing_date"])
+
