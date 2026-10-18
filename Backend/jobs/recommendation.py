@@ -5,7 +5,7 @@ documented weighted score. No AI required — this is the reliable baseline the
 rest of the app always falls back to.
 
 Scoring (out of 100 points total):
-───────────────────────────────────
+
 Job type match  (40 pts)
     • 40 pts  — job.job_type is in the user's selected job_types.
     • 20 pts  — job.job_type is unknown/null (neutral: missing data ≠ mismatch).

@@ -111,8 +111,17 @@ class TelegramWebAppAuthentication(authentication.BaseAuthentication):
         init_data = request.headers.get("X-Telegram-Init-Data")
 
         if init_data:
-            parsed = verify_init_data(init_data, settings.TELEGRAM_BOT_TOKEN)
-            tg_user = parsed.get("user") or {}
+            if not settings.TELEGRAM_BOT_TOKEN and settings.DEBUG:
+                pairs = parse_qsl(init_data, keep_blank_values=True)
+                data = dict(pairs)
+                try:
+                    tg_user = json.loads(data.get("user", "{}"))
+                except (ValueError, TypeError):
+                    tg_user = {}
+            else:
+                parsed = verify_init_data(init_data, settings.TELEGRAM_BOT_TOKEN)
+                tg_user = parsed.get("user") or {}
+
             telegram_id = tg_user.get("id")
             if telegram_id is None:
                 raise TelegramAuthError(

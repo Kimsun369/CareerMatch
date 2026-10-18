@@ -8,6 +8,7 @@ export interface Job {
   description: string;
   skills: string[];
   closing_date: string | null;
+  published_date?: string | null;
   source: string;
   source_url: string;
   match_score?: number;
@@ -25,6 +26,9 @@ export interface UserPreferences {
 
 export interface UserProfile {
   telegram_id?: string | number;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
   preferences: UserPreferences;
 }
 

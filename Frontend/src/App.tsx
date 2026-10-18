@@ -3,6 +3,44 @@ import { api } from "./api";
 import type { Job, UserPreferences } from "./types";
 import { COUNTRIES } from "./countries";
 
+// ── Card accent colours ───────────────────────────────────────────────────
+// Each job gets a bold accent colour block behind the dark title panel.
+// Colour is chosen by field category first; falls back to a hash of the org name.
+
+const FIELD_ACCENT: Record<string, string> = {
+  hotel_tourism:            "#f97316",   // orange
+  tech_it:                  "#3b82f6",   // blue
+  marketing_sales:          "#a855f7",   // purple
+  health_ngo:               "#22c55e",   // green
+  finance_banking:          "#0ea5e9",   // sky
+  education_teaching:       "#14b8a6",   // teal
+  construction_engineering: "#f59e0b",   // amber
+  logistics_supply_chain:   "#ef4444",   // red
+  any:                      "#6366f1",   // indigo
+};
+
+const FALLBACK_ACCENTS = [
+  "#f97316","#3b82f6","#a855f7","#22c55e","#0ea5e9",
+  "#14b8a6","#f59e0b","#ef4444","#6366f1","#ec4899",
+];
+
+function cardAccentColor(field: string | null, org: string): string {
+  if (field && FIELD_ACCENT[field]) return FIELD_ACCENT[field];
+  let hash = 0;
+  for (let i = 0; i < org.length; i++) hash = (hash * 31 + org.charCodeAt(i)) | 0;
+  return FALLBACK_ACCENTS[Math.abs(hash) % FALLBACK_ACCENTS.length];
+}
+
+/** Shrink font size for longer titles so they still fit in the panel. */
+function titleFontSize(title: string): number {
+  const len = title.length;
+  if (len < 22) return 24;
+  if (len < 40) return 20;
+  if (len < 60) return 16;
+  if (len < 90) return 13;
+  return 11;
+}
+
 // ── Icons ────────────────────────────────────────────────────────────────
 function IconBriefcase({ size = 20 }: { size?: number }) {
   return (
@@ -118,6 +156,23 @@ function IconGlobe({ size = 20 }: { size?: number }) {
       <circle cx="12" cy="12" r="10" />
       <line x1="2" y1="12" x2="22" y2="12" />
       <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  );
+}
+
+function IconHome({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <polyline points="9 22 9 12 15 12 15 22" />
+    </svg>
+  );
+}
+
+function IconStar({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
     </svg>
   );
 }
@@ -242,17 +297,199 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
   );
 }
 
+// ── Job Card (shared between Home and For You) ────────────────────────────
+
+const FIELD_OPTIONS_LIST = [
+  { value: "hotel_tourism", label: "Hotel & Tourism", icon: <IconHotel size={20} /> },
+  { value: "tech_it", label: "Tech & IT", icon: <IconMonitor size={20} /> },
+  { value: "marketing_sales", label: "Marketing & Sales", icon: <IconBarChart size={20} /> },
+  { value: "health_ngo", label: "Health & NGO", icon: <IconHeart size={20} /> },
+  { value: "finance_banking", label: "Finance & Banking", icon: <IconDollarSign size={20} /> },
+  { value: "education_teaching", label: "Education & Teaching", icon: <IconBook size={20} /> },
+  { value: "construction_engineering", label: "Construction & Engineering", icon: <IconHardHat size={20} /> },
+  { value: "logistics_supply_chain", label: "Logistics & Supply Chain", icon: <IconTruck size={20} /> },
+  { value: "any", label: "Any / Show me everything", icon: <IconGrid size={20} /> },
+];
+
+const FIELD_LABELS: Record<string, string> = Object.fromEntries(
+  FIELD_OPTIONS_LIST.map((o) => [o.value, o.label])
+);
+
+const JOB_TYPE_LABELS: Record<string, string> = {
+  full_time: "Full-time",
+  part_time: "Part-time",
+  internship: "Internship",
+  freelance: "Freelance",
+};
+
 function JobCardSkeleton() {
   return (
-    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: 20 }}>
-      <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-        <Skeleton h={42} w={42} rounded={21} />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-          <Skeleton h={14} w="80%" />
-          <Skeleton h={12} w="50%" />
+    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+      {/* Typographic area skeleton */}
+      <div style={{ position: "relative", padding: "14px 14px 22px", background: "#0d1117" }}>
+        <div style={{ position: "absolute", right: 8, bottom: 8, left: 22, top: 22, background: "var(--secondary)", borderRadius: 8 }} />
+        <div style={{ position: "relative", borderRadius: 8, padding: "18px 16px", minHeight: 140, background: "var(--secondary)", display: "flex", flexDirection: "column", gap: 8 }}>
+          <Skeleton h={22} w="90%" />
+          <Skeleton h={22} w="70%" />
+          <Skeleton h={22} w="55%" />
         </div>
       </div>
-      <Skeleton h={10} w="40%" rounded={4} />
+      <div style={{ padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+        <Skeleton h={12} w="60%" />
+        <Skeleton h={10} w="40%" rounded={4} />
+        <Skeleton h={34} rounded={8} />
+      </div>
+    </div>
+  );
+}
+
+function ScoreBadge({ score }: { score: number | undefined }) {
+  if (score === undefined) return null;
+  const cls = score >= 85 ? "score-high" : score >= 70 ? "score-mid" : "";
+  return (
+    <div className={`score-badge ${cls}`} title={`${score}% match`}>
+      {score}
+    </div>
+  );
+}
+
+/** Typographic card: big bold title on dark panel + coloured accent block behind it */
+function JobCard({
+  job,
+  isSaved,
+  onToggleSave,
+  onClick,
+}: {
+  job: Job;
+  isSaved: boolean;
+  onToggleSave: (e: React.MouseEvent) => void;
+  onClick: () => void;
+}) {
+  const org = job.organization || "Unknown";
+  const accent = cardAccentColor(job.field, org);
+  const fontSize = titleFontSize(job.title);
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        flexShrink: 0,
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius)",
+        overflow: "hidden",
+        cursor: "pointer",
+        transition: "border-color 0.2s",
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = accent + "88")}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+    >
+      {/* ── Typographic header ── */}
+      <div style={{ position: "relative", padding: "14px 14px 22px", background: "#0c111d" }}>
+        {/* Accent block — peeks out bottom-right behind the dark panel */}
+        <div style={{
+          position: "absolute",
+          right: 8,
+          bottom: 8,
+          left: 22,
+          top: 22,
+          background: accent,
+          borderRadius: 8,
+        }} />
+        {/* Dark title panel */}
+        <div style={{
+          position: "relative",
+          background: "#0d1117",
+          borderRadius: 8,
+          padding: "18px 16px",
+          minHeight: 140,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "flex-end",
+        }}>
+          {/* Match score badge top-right inside panel */}
+          {job.match_score !== undefined && (
+            <div style={{ position: "absolute", top: 12, right: 12 }}>
+              <ScoreBadge score={job.match_score} />
+            </div>
+          )}
+          <p style={{
+            fontSize,
+            fontWeight: 800,
+            color: "#ffffff",
+            textTransform: "uppercase",
+            lineHeight: 1.15,
+            letterSpacing: "-0.01em",
+            margin: 0,
+            display: "-webkit-box",
+            WebkitLineClamp: 5,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}>
+            {job.title}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Card body ── */}
+      <div style={{ padding: "12px 14px 14px" }}>
+        {/* Org + save button */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <p style={{ fontSize: 13, color: "var(--primary)", fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+            {org}
+          </p>
+          <button
+            style={{ background: "none", border: "none", padding: "0 0 0 8px", cursor: "pointer", color: isSaved ? accent : "var(--muted-foreground)", flexShrink: 0, transition: "color 0.15s" }}
+            onClick={onToggleSave}
+            aria-label={isSaved ? "Remove from saved" : "Save job"}
+          >
+            <IconBookmark size={16} filled={isSaved} />
+          </button>
+        </div>
+
+        {/* Location + published date + closing date */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 12px", marginBottom: 8 }}>
+          {job.location ? (
+            <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--muted-foreground)" }}>
+              <IconMapPin size={11} />{job.location}
+            </span>
+          ) : (
+            <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Location not specified</span>
+          )}
+          {job.published_date && (
+            <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+              Posted {job.published_date}
+            </span>
+          )}
+          {job.closing_date && (
+            <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Closes {job.closing_date}</span>
+          )}
+        </div>
+
+        {/* Tags */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+          {job.job_type && <span className="chip">{JOB_TYPE_LABELS[job.job_type] ?? job.job_type}</span>}
+          {job.field && <span className="chip">{FIELD_LABELS[job.field] ?? job.field}</span>}
+        </div>
+
+        {/* Match reason */}
+        {job.match_reason && (
+          <div style={{ marginBottom: 10, padding: "7px 10px", background: accent + "12", borderRadius: 6, borderLeft: `2px solid ${accent}` }}>
+            <p style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, margin: 0 }}>
+              {job.match_reason}
+            </p>
+          </div>
+        )}
+
+        {/* View details */}
+        <button
+          className="btn-outline"
+          style={{ width: "100%", padding: "8px 0", fontSize: 13, borderColor: accent + "55", color: accent }}
+          onClick={(e) => { e.stopPropagation(); onClick(); }}
+        >
+          View details
+        </button>
+      </div>
     </div>
   );
 }
@@ -271,31 +508,13 @@ function Logo() {
   );
 }
 
-// ── Onboarding ────────────────────────────────────────────────────────────
+// ── Onboarding (used inside For You tab) ─────────────────────────────────
 const JOB_TYPE_OPTIONS = [
   { value: "full_time", label: "Full-time job", icon: <IconBriefcase size={22} /> },
   { value: "part_time", label: "Part-time / Flexible", icon: <IconClock size={22} /> },
   { value: "internship", label: "Internship", icon: <IconGraduationCap size={22} /> },
   { value: "freelance", label: "Freelance / Gig", icon: <IconTool size={22} /> },
 ];
-
-const FIELD_OPTIONS = [
-  { value: "hotel_tourism", label: "Hotel & Tourism", icon: <IconHotel size={20} /> },
-  { value: "tech_it", label: "Tech & IT", icon: <IconMonitor size={20} /> },
-  { value: "marketing_sales", label: "Marketing & Sales", icon: <IconBarChart size={20} /> },
-  { value: "health_ngo", label: "Health & NGO", icon: <IconHeart size={20} /> },
-  { value: "finance_banking", label: "Finance & Banking", icon: <IconDollarSign size={20} /> },
-  { value: "education_teaching", label: "Education & Teaching", icon: <IconBook size={20} /> },
-  { value: "construction_engineering", label: "Construction & Engineering", icon: <IconHardHat size={20} /> },
-  { value: "logistics_supply_chain", label: "Logistics & Supply Chain", icon: <IconTruck size={20} /> },
-  { value: "any", label: "Any / Show me everything", icon: <IconGrid size={20} /> },
-];
-
-// Human-readable labels for job.field values returned by the backend, so
-// job cards show "Tech & IT" rather than the raw "tech_it" code.
-const FIELD_LABELS: Record<string, string> = Object.fromEntries(
-  FIELD_OPTIONS.map((o) => [o.value, o.label])
-);
 
 type OnboardingState = {
   job_types: string[];
@@ -304,7 +523,7 @@ type OnboardingState = {
   country: string;
 };
 
-type Tab = "feed" | "saved" | "profile";
+type Tab = "home" | "foryou" | "saved" | "profile";
 
 function SelectCard({
   icon,
@@ -391,9 +610,9 @@ function Onboarding({ onComplete }: { onComplete: () => void }) {
     setSubmitting(true);
     setSubmitError(null);
 
-    const preferences = {
+    const preferences: UserPreferences = {
       job_types: state.job_types,
-      fields: state.fields === state.fields.filter((f) => f === "any") ? [] : state.fields.filter((f) => f !== "any"),
+      fields: state.fields.filter((f) => f !== "any"),
       location_type: state.location_type as "cambodia" | "abroad",
       country: state.location_type === "abroad" ? state.country : undefined,
     };
@@ -409,11 +628,14 @@ function Onboarding({ onComplete }: { onComplete: () => void }) {
 
   return (
     <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", padding: "0 24px 32px" }}>
-      <div style={{ paddingTop: 48, paddingBottom: 32 }}>
+      <div style={{ paddingTop: 32, paddingBottom: 28 }}>
         <Logo />
+        <p style={{ marginTop: 16, fontSize: 13, color: "var(--muted-foreground)" }}>
+          Tell us what you're looking for so we can personalise your recommendations.
+        </p>
 
         {/* Progress */}
-        <div style={{ display: "flex", gap: 6, marginTop: 36, marginBottom: 36 }}>
+        <div style={{ display: "flex", gap: 6, marginTop: 24, marginBottom: 28 }}>
           {[1, 2, 3].map((n) => (
             <div key={n} style={{ flex: 1, height: 3, borderRadius: 2, background: n <= step ? "var(--primary)" : "var(--secondary)", transition: "background 0.3s" }} />
           ))}
@@ -445,7 +667,7 @@ function Onboarding({ onComplete }: { onComplete: () => void }) {
       {/* Step 2 — Field */}
       {step === 2 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, overflowY: "auto" }} className="scrollbar-hide">
-          {FIELD_OPTIONS.map((opt) => (
+          {FIELD_OPTIONS_LIST.map((opt) => (
             <SelectCard
               key={opt.value}
               icon={opt.icon}
@@ -473,7 +695,6 @@ function Onboarding({ onComplete }: { onComplete: () => void }) {
             onClick={() => setState((s) => ({ ...s, location_type: "abroad" }))}
           />
 
-          {/* Country sub-step */}
           {state.location_type === "abroad" && (
             <div style={{ marginTop: 8, background: "var(--secondary)", borderRadius: "var(--radius)", border: "1px solid var(--border)", overflow: "hidden" }}>
               <p style={{ fontSize: 12, fontWeight: 600, color: "var(--muted-foreground)", padding: "12px 16px 8px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
@@ -541,7 +762,6 @@ function Onboarding({ onComplete }: { onComplete: () => void }) {
         <p style={{ fontSize: 13, color: "#f87171", marginTop: 12, lineHeight: 1.5 }}>{submitError}</p>
       )}
 
-      {/* Navigation */}
       <div style={{ marginTop: 28, display: "flex", flexDirection: "column", gap: 10 }}>
         <button
           className="btn-primary"
@@ -564,129 +784,61 @@ function Onboarding({ onComplete }: { onComplete: () => void }) {
   );
 }
 
-// ── Feed ──────────────────────────────────────────────────────────────────
-function ScoreBadge({ score }: { score: number | undefined }) {
-  if (score === undefined) return null;
-  const cls = score >= 85 ? "score-high" : score >= 70 ? "score-mid" : "";
-  return (
-    <div className={`score-badge ${cls}`} title={`${score}% match`}>
-      {score}
-    </div>
-  );
-}
-
-function JobCard({
-  job,
-  isSaved,
-  onToggleSave,
-  onClick,
-}: {
-  job: Job;
-  isSaved: boolean;
-  onToggleSave: (e: React.MouseEvent) => void;
-  onClick: () => void;
-}) {
-  return (
-    <div className="job-card" onClick={onClick}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-        <ScoreBadge score={job.match_score} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.35, color: "var(--foreground)", margin: 0 }}>
-              {job.title}
-            </h3>
-            <button
-              style={{ background: "none", border: "none", padding: "2px 0 0 8px", cursor: "pointer", color: isSaved ? "var(--primary)" : "var(--muted-foreground)", flexShrink: 0, transition: "color 0.15s" }}
-              onClick={onToggleSave}
-              aria-label={isSaved ? "Remove from saved" : "Save job"}
-            >
-              <IconBookmark size={15} filled={isSaved} />
-            </button>
-          </div>
-          <p style={{ fontSize: 13, color: "var(--primary)", fontWeight: 500, margin: "4px 0 8px" }}>
-            {job.organization}
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 12px" }}>
-            {job.location ? (
-              <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--muted-foreground)" }}>
-                <IconMapPin size={12} />{job.location}
-              </span>
-            ) : (
-              <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Location not specified</span>
-            )}
-            {job.closing_date && (
-              <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-                Closes {job.closing_date}
-              </span>
-            )}
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
-            {job.job_type && <span className="chip">{job.job_type}</span>}
-            {job.field && <span className="chip">{FIELD_LABELS[job.field] ?? job.field}</span>}
-          </div>
-          {job.match_reason && (
-            <p style={{ marginTop: 10, fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
-              {job.match_reason}
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Feed({
-  onSelectJob,
-}: {
-  onSelectJob: (job: Job) => void;
-}) {
+// ── Tab 1: Home (all jobs, random feed) ───────────────────────────────────
+function Home({ onSelectJob }: { onSelectJob: (job: Job) => void }) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [savedIds, setSavedIds] = useState<Set<string | number>>(new Set());
 
-  const fetchJobs = useCallback(async () => {
+  const sortByNewest = (items: Job[]) => {
+    return [...items].sort((a, b) => {
+      if (a.published_date && b.published_date) {
+        return new Date(b.published_date).getTime() - new Date(a.published_date).getTime();
+      }
+      if (a.published_date) return -1;
+      if (b.published_date) return 1;
+      return Number(b.id) - Number(a.id);
+    });
+  };
+
+  const fetchAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.getRecommendations();
-      setJobs(res.results);
+      const res = await api.getJobs();
+      setJobs(sortByNewest(res.results));
     } catch {
-      setError("Could not load recommendations. Check your connection.");
+      setError("Could not load jobs. Check your connection.");
     } finally {
       setLoading(false);
     }
   }, []);
 
   const fetchWithSearch = useCallback(async () => {
-    if (!search.trim()) {
-      fetchJobs();
-      return;
-    }
+    if (!search.trim()) { fetchAll(); return; }
     setLoading(true);
     setError(null);
     try {
       const res = await api.getJobs({ search: search.trim() });
-      setJobs(res.results);
+      setJobs(sortByNewest(res.results));
     } catch {
       setError("Search failed. Please try again.");
     } finally {
       setLoading(false);
     }
-  }, [search, fetchJobs]);
+  }, [search, fetchAll]);
 
-  useEffect(() => {
-    fetchJobs();
-  }, [fetchJobs]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   useEffect(() => {
     const t = setTimeout(() => {
       if (search.trim()) fetchWithSearch();
-      else fetchJobs();
+      else fetchAll();
     }, 400);
     return () => clearTimeout(t);
-  }, [search, fetchWithSearch, fetchJobs]);
+  }, [search, fetchWithSearch, fetchAll]);
 
   async function toggleSave(e: React.MouseEvent, job: Job) {
     e.stopPropagation();
@@ -712,10 +864,21 @@ function Feed({
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "20px 20px 0" }}>
-        <p className="section-label" style={{ marginBottom: 6 }}>Matched for you</p>
-        <h2 className="font-display" style={{ fontSize: 22, fontWeight: 400, color: "var(--foreground)", marginBottom: 16 }}>
-          Recommendations
-        </h2>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <Logo />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 11, padding: "3px 9px", background: "rgba(79,127,255,0.12)", color: "var(--primary)", borderRadius: 100, fontWeight: 500 }}>
+              Newest First
+            </span>
+            <button
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted-foreground)", display: "flex", alignItems: "center", gap: 5, fontSize: 12 }}
+              onClick={fetchAll}
+              title="Refresh feed"
+            >
+              <IconRefresh size={13} />
+            </button>
+          </div>
+        </div>
         <div style={{ position: "relative", marginBottom: 12 }}>
           <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--muted-foreground)", pointerEvents: "none" }}>
             <IconSearch size={14} />
@@ -739,14 +902,114 @@ function Feed({
         </div>
       </div>
       <div className="divider" />
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px 20px 80px", display: "flex", flexDirection: "column", gap: 10 }} className="scrollbar-hide">
+      <div
+        style={{ flex: 1, overflowY: "auto", padding: "12px 16px 80px", display: "flex", flexDirection: "column", gap: 12 }}
+        className="scrollbar-hide"
+      >
         {loading && Array.from({ length: 4 }).map((_, i) => <JobCardSkeleton key={i} />)}
-        {!loading && error && <ErrorState message={error} onRetry={fetchJobs} />}
+        {!loading && error && <ErrorState message={error} onRetry={fetchAll} />}
+        {!loading && !error && jobs.length === 0 && (
+          <div style={{ textAlign: "center", padding: "48px 0" }}>
+            <p style={{ fontSize: 15, fontWeight: 500, color: "var(--foreground)" }}>No jobs found</p>
+            <p style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 6 }}>Try a different search term.</p>
+          </div>
+        )}
+        {!loading && !error && jobs.map((job) => (
+          <JobCard
+            key={job.id}
+            job={job}
+            isSaved={savedIds.has(job.id) || !!job.is_saved}
+            onToggleSave={(e) => toggleSave(e, job)}
+            onClick={() => onSelectJob(job)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Tab 2: For You (onboarding → recommendations) ─────────────────────────
+function ForYou({
+  onSelectJob,
+  onboardingDone,
+  onOnboardingComplete,
+}: {
+  onSelectJob: (job: Job) => void;
+  onboardingDone: boolean;
+  onOnboardingComplete: () => void;
+}) {
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [savedIds, setSavedIds] = useState<Set<string | number>>(new Set());
+
+  const fetchRecs = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.getRecommendations();
+      setJobs(res.results);
+    } catch {
+      setError("Could not load recommendations. Check your connection.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (onboardingDone) fetchRecs();
+  }, [onboardingDone, fetchRecs]);
+
+  async function toggleSave(e: React.MouseEvent, job: Job) {
+    e.stopPropagation();
+    const id = job.id;
+    const wasSaved = savedIds.has(id);
+    setSavedIds((prev) => {
+      const next = new Set(prev);
+      wasSaved ? next.delete(id) : next.add(id);
+      return next;
+    });
+    try {
+      if (wasSaved) await api.unsaveJob(id);
+      else await api.saveJob(id);
+    } catch {
+      setSavedIds((prev) => {
+        const next = new Set(prev);
+        wasSaved ? next.add(id) : next.delete(id);
+        return next;
+      });
+    }
+  }
+
+  // Show onboarding inline if not yet done
+  if (!onboardingDone) {
+    return (
+      <div style={{ height: "100%", overflowY: "auto" }} className="scrollbar-hide">
+        <Onboarding onComplete={onOnboardingComplete} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "20px 20px 16px" }}>
+        <p className="section-label" style={{ marginBottom: 6 }}>Matched for you</p>
+        <h2 className="font-display" style={{ fontSize: 22, fontWeight: 400, color: "var(--foreground)" }}>
+          Recommendations
+        </h2>
+      </div>
+      <div className="divider" />
+      <div
+        style={{ flex: 1, overflowY: "auto", padding: "12px 16px 80px", display: "flex", flexDirection: "column", gap: 12 }}
+        className="scrollbar-hide"
+      >
+        {loading && Array.from({ length: 4 }).map((_, i) => <JobCardSkeleton key={i} />)}
+        {!loading && error && <ErrorState message={error} onRetry={fetchRecs} />}
         {!loading && !error && jobs.length === 0 && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 0", textAlign: "center", gap: 12 }}>
             <p style={{ fontSize: 15, fontWeight: 500, color: "var(--foreground)" }}>No matching jobs found</p>
             <p style={{ fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-              Try changing your preferences or broadening your search.
+              Try changing your preferences in the Profile tab.
             </p>
           </div>
         )}
@@ -764,7 +1027,7 @@ function Feed({
   );
 }
 
-// ── Job Detail ──────────────────────────────────────────────────────────
+// ── Job Detail ─────────────────────────────────────────────────────────────
 function JobDetail({ jobId, onBack }: { jobId: string | number; onBack: () => void }) {
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
@@ -799,8 +1062,13 @@ function JobDetail({ jobId, onBack }: { jobId: string | number; onBack: () => vo
     }
   }
 
+  // Accent colour for the detail page header
+  const org = job?.organization || "Unknown";
+  const accent = cardAccentColor(job?.field ?? null, org);
+
   return (
     <div style={{ height: "100%", overflowY: "auto" }} className="scrollbar-hide">
+      {/* Sticky top bar */}
       <div style={{ position: "sticky", top: 0, background: "var(--background)", borderBottom: "1px solid var(--border)", padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", zIndex: 10 }}>
         <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--foreground)", display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 500, padding: "4px 0" }}>
           <IconArrowLeft size={18} /> Back
@@ -812,7 +1080,12 @@ function JobDetail({ jobId, onBack }: { jobId: string | number; onBack: () => vo
         )}
       </div>
 
-      <div style={{ padding: "24px 20px 48px" }}>
+      {/* Org accent header strip */}
+      {!loading && !error && job && (
+        <div style={{ height: 6, background: accent }} />
+      )}
+
+      <div style={{ padding: "20px 20px 48px" }}>
         {loading && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <Skeleton h={24} w="75%" />
@@ -832,7 +1105,7 @@ function JobDetail({ jobId, onBack }: { jobId: string | number; onBack: () => vo
         {!loading && !error && job && (
           <>
             {job.match_score !== undefined && (
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
                 <ScoreBadge score={job.match_score} />
                 <div>
                   <p className="section-label" style={{ marginBottom: 3 }}>Match score</p>
@@ -840,8 +1113,7 @@ function JobDetail({ jobId, onBack }: { jobId: string | number; onBack: () => vo
                 </div>
               </div>
             )}
-            <div className="divider" style={{ marginBottom: 20 }} />
-            <h1 className="font-display" style={{ fontSize: 24, fontWeight: 400, lineHeight: 1.25, marginBottom: 6, color: "var(--foreground)" }}>
+            <h1 className="font-display" style={{ fontSize: 24, fontWeight: 400, lineHeight: 1.25, marginBottom: 4, color: "var(--foreground)" }}>
               {job.title}
             </h1>
             <p style={{ fontSize: 15, color: "var(--primary)", fontWeight: 600, marginBottom: 16 }}>{job.organization}</p>
@@ -851,7 +1123,7 @@ function JobDetail({ jobId, onBack }: { jobId: string | number; onBack: () => vo
               ) : (
                 <span style={{ fontSize: 13, color: "var(--muted-foreground)" }}>Location not specified</span>
               )}
-              {job.job_type && <span style={{ fontSize: 13, color: "var(--muted-foreground)" }}>{job.job_type}</span>}
+              {job.job_type && <span style={{ fontSize: 13, color: "var(--muted-foreground)" }}>{JOB_TYPE_LABELS[job.job_type] ?? job.job_type}</span>}
               {job.field && <span style={{ fontSize: 13, color: "var(--muted-foreground)" }}>{FIELD_LABELS[job.field] ?? job.field}</span>}
               {job.closing_date ? (
                 <span style={{ fontSize: 13, color: "var(--muted-foreground)" }}>Closes {job.closing_date}</span>
@@ -891,7 +1163,7 @@ function JobDetail({ jobId, onBack }: { jobId: string | number; onBack: () => vo
   );
 }
 
-// ── Saved Jobs ────────────────────────────────────────────────────────────
+// ── Saved Jobs ─────────────────────────────────────────────────────────────
 function SavedJobs({ onSelectJob }: { onSelectJob: (job: Job) => void }) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -927,7 +1199,7 @@ function SavedJobs({ onSelectJob }: { onSelectJob: (job: Job) => void }) {
         <h2 className="font-display" style={{ fontSize: 22, fontWeight: 400, color: "var(--foreground)" }}>Saved Jobs</h2>
       </div>
       <div className="divider" />
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px 20px 80px", display: "flex", flexDirection: "column", gap: 10 }} className="scrollbar-hide">
+      <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px 80px", display: "flex", flexDirection: "column", gap: 12 }} className="scrollbar-hide">
         {loading && Array.from({ length: 3 }).map((_, i) => <JobCardSkeleton key={i} />)}
         {!loading && error && <ErrorState message={error} onRetry={fetchSaved} />}
         {!loading && !error && jobs.length === 0 && (
@@ -953,13 +1225,11 @@ function SavedJobs({ onSelectJob }: { onSelectJob: (job: Job) => void }) {
   );
 }
 
-// ── Profile ───────────────────────────────────────────────────────────────
+// ── Profile ────────────────────────────────────────────────────────────────
 function Profile({ onResetPreferences }: { onResetPreferences: () => void }) {
   const [profile, setProfile] = useState<import("./types").UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [updating, setUpdating] = useState(false);
-  const [updateError, setUpdateError] = useState<string | null>(null);
 
   const fetchProfile = useCallback(async () => {
     setLoading(true);
@@ -975,19 +1245,6 @@ function Profile({ onResetPreferences }: { onResetPreferences: () => void }) {
   }, []);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
-
-  async function handleUpdatePreferences() {
-    if (!profile) return;
-    setUpdating(true);
-    setUpdateError(null);
-    try {
-      await api.updatePreferences(profile.preferences);
-    } catch {
-      setUpdateError("Could not update preferences. Please try again.");
-    } finally {
-      setUpdating(false);
-    }
-  }
 
   return (
     <div style={{ height: "100%", overflowY: "auto" }} className="scrollbar-hide">
@@ -1017,7 +1274,7 @@ function Profile({ onResetPreferences }: { onResetPreferences: () => void }) {
             </div>
             <div>
               <p style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>
-                {profile.telegram_id ? `User ${profile.telegram_id}` : "Telegram User"}
+                {profile.first_name || profile.username || `User ${profile.telegram_id}`}
               </p>
               <p style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Connected via Telegram</p>
             </div>
@@ -1026,8 +1283,8 @@ function Profile({ onResetPreferences }: { onResetPreferences: () => void }) {
           <div style={{ margin: "0 20px 16px", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
             <p className="section-label" style={{ padding: "14px 16px 10px" }}>Preferences</p>
             {[
-              { label: "Job types", value: profile.preferences.job_types?.join(", ") || "—" },
-              { label: "Fields", value: profile.preferences.fields?.join(", ") || "—" },
+              { label: "Job types", value: profile.preferences.job_types?.map((t) => JOB_TYPE_LABELS[t] ?? t).join(", ") || "—" },
+              { label: "Fields", value: profile.preferences.fields?.map((f) => FIELD_LABELS[f] ?? f).join(", ") || "—" },
               { label: "Location", value: profile.preferences.location_type === "abroad" ? `Abroad — ${profile.preferences.country || ""}` : (profile.preferences.location_type === "cambodia" ? "Cambodia" : "—") },
             ].map((row, i) => (
               <div key={i}>
@@ -1047,15 +1304,12 @@ function Profile({ onResetPreferences }: { onResetPreferences: () => void }) {
             </p>
           </div>
 
-          {updateError && (
-            <p style={{ fontSize: 13, color: "#f87171", margin: "0 20px 12px", lineHeight: 1.5 }}>{updateError}</p>
-          )}
-
-          <div style={{ padding: "0 20px 80px", display: "flex", flexDirection: "column", gap: 10 }}>
-            <button className="btn-outline" style={{ width: "100%" }} onClick={handleUpdatePreferences} disabled={updating}>
-              {updating ? "Updating…" : "Update Preferences"}
-            </button>
-            <button className="btn-outline" style={{ width: "100%", color: "var(--muted-foreground)", borderColor: "var(--border)" }} onClick={onResetPreferences}>
+          <div style={{ padding: "0 20px 80px" }}>
+            <button
+              className="btn-outline"
+              style={{ width: "100%", color: "var(--muted-foreground)", borderColor: "var(--border)" }}
+              onClick={onResetPreferences}
+            >
               Redo Onboarding
             </button>
           </div>
@@ -1065,11 +1319,12 @@ function Profile({ onResetPreferences }: { onResetPreferences: () => void }) {
   );
 }
 
-// ── Bottom Nav ────────────────────────────────────────────────────────────
+// ── Bottom Nav (4 tabs) ────────────────────────────────────────────────────
 function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: "feed", label: "Matches", icon: <IconBriefcase size={18} /> },
-    { id: "saved", label: "Saved", icon: <IconBookmark size={18} /> },
+    { id: "home",    label: "Home",    icon: <IconHome size={18} /> },
+    { id: "foryou",  label: "For You", icon: <IconStar size={18} /> },
+    { id: "saved",   label: "Saved",   icon: <IconBookmark size={18} /> },
     { id: "profile", label: "Profile", icon: <IconUser size={18} /> },
   ];
   return (
@@ -1086,39 +1341,31 @@ function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   );
 }
 
-// ── App ───────────────────────────────────────────────────────────────────
-type AppView = "checking" | "onboarding" | "main";
-
+// ── App ────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [view, setView] = useState<AppView>("checking");
-  const [tab, setTab] = useState<Tab>("feed");
+  const [checking, setChecking] = useState(true);
+  const [onboardingDone, setOnboardingDone] = useState(false);
+  const [tab, setTab] = useState<Tab>("home");
   const [detailJobId, setDetailJobId] = useState<string | number | null>(null);
 
-  // On startup, ask the backend whether this Telegram user already
-  // completed onboarding (preferences persist in Postgres). Only show the
-  // onboarding flow once, not on every open — the API is the source of
-  // truth, not local state.
   useEffect(() => {
     let cancelled = false;
     api
       .getProfile()
       .then((profile) => {
         if (cancelled) return;
-        setView(profile.preferences?.onboarding_completed ? "main" : "onboarding");
+        setOnboardingDone(!!profile.preferences?.onboarding_completed);
+        setChecking(false);
       })
       .catch(() => {
         if (cancelled) return;
-        // If we can't reach the backend yet, default to onboarding rather
-        // than getting stuck on a blank screen; the onboarding form itself
-        // will surface a clear connection error if saving also fails.
-        setView("onboarding");
+        // Can't reach backend — let them browse Home, onboarding will show when they go to For You
+        setChecking(false);
       });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
-  if (view === "checking") {
+  if (checking) {
     return (
       <div style={{ height: "100%", maxWidth: 480, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--background)" }}>
         <Logo />
@@ -1128,18 +1375,28 @@ export default function App() {
 
   return (
     <div style={{ height: "100%", maxWidth: 480, margin: "0 auto", position: "relative", overflow: "hidden", background: "var(--background)" }}>
-      {view === "onboarding" ? (
-        <div style={{ height: "100%", overflowY: "auto" }} className="scrollbar-hide">
-          <Onboarding onComplete={() => { setView("main"); setTab("feed"); }} />
-        </div>
-      ) : detailJobId !== null ? (
+      {detailJobId !== null ? (
         <JobDetail jobId={detailJobId} onBack={() => setDetailJobId(null)} />
       ) : (
         <>
           <div style={{ height: "100%", paddingBottom: 60 }}>
-            {tab === "feed" && <Feed onSelectJob={(job) => setDetailJobId(job.id)} />}
-            {tab === "saved" && <SavedJobs onSelectJob={(job) => setDetailJobId(job.id)} />}
-            {tab === "profile" && <Profile onResetPreferences={() => setView("onboarding")} />}
+            {tab === "home"    && <Home onSelectJob={(job) => setDetailJobId(job.id)} />}
+            {tab === "foryou"  && (
+              <ForYou
+                onSelectJob={(job) => setDetailJobId(job.id)}
+                onboardingDone={onboardingDone}
+                onOnboardingComplete={() => { setOnboardingDone(true); }}
+              />
+            )}
+            {tab === "saved"   && <SavedJobs onSelectJob={(job) => setDetailJobId(job.id)} />}
+            {tab === "profile" && (
+              <Profile
+                onResetPreferences={() => {
+                  setOnboardingDone(false);
+                  setTab("foryou");
+                }}
+              />
+            )}
           </div>
           <BottomNav tab={tab} setTab={setTab} />
         </>
