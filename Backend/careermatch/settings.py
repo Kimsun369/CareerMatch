@@ -31,7 +31,7 @@ def _env_list(name: str, default: list[str]) -> list[str]:
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-insecure-key-change-me")
 DEBUG = _env_bool("DJANGO_DEBUG", True)
-ALLOWED_HOSTS = _env_list("DJANGO_ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
+ALLOWED_HOSTS = _env_list("DJANGO_ALLOWED_HOSTS", ["localhost", "127.0.0.1", ".onrender.com"])
 
 # Django's test client sends 'testserver' as the HTTP_HOST. Add it when
 # DEBUG=True so `manage.py test` works without editing ALLOWED_HOSTS in .env.
@@ -53,6 +53,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     # CorsMiddleware must come before CommonMiddleware so it can intercept
     # pre-flight OPTIONS requests before they hit Django's normal routing.
     "corsheaders.middleware.CorsMiddleware",
@@ -89,7 +90,15 @@ WSGI_APPLICATION = "careermatch.wsgi.application"
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if DATABASE_URL:
-    DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)}
+    is_postgres = DATABASE_URL.startswith("postgres://") or DATABASE_URL.startswith("postgresql://")
+    ssl_needed = is_postgres and "localhost" not in DATABASE_URL and "127.0.0.1" not in DATABASE_URL and "@db:" not in DATABASE_URL
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=ssl_needed,
+        )
+    }
 else:
     DATABASES = {
         "default": {
@@ -115,7 +124,20 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
+# Ensure HTTPS detection works behind Render reverse proxy
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # ── CareerMatch-specific config ───────────────────────────────────────────────
 
@@ -128,10 +150,8 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 # Optional AI reranking/explanations. The app works fully with this unset.
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
-# ── CORS ──────────────────────────────────────────────────────────────────────
-# Covers both the Vite dev port (8443) and the standard Next.js/Vite ports.
-# Add http://localhost:3000 if your Next.js frontend runs there.
-
+# ── CORS & CSRF ───────────────────────────────────────────────────────────────
+# Covers both the Vite dev port (8443) and standard Next.js/Vite ports.
 CORS_ALLOWED_ORIGINS = _env_list(
     "CORS_ALLOWED_ORIGINS",
     [
@@ -141,6 +161,18 @@ CORS_ALLOWED_ORIGINS = _env_list(
         "http://127.0.0.1:5173",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+    ],
+)
+
+# Automatically allow Vercel production and preview deployments
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https:\/\/.*\.vercel\.app$",
+]
+
+CSRF_TRUSTED_ORIGINS = _env_list(
+    "CSRF_TRUSTED_ORIGINS",
+    [
+        "https://*.onrender.com",
     ],
 )
 
