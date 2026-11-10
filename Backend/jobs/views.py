@@ -158,6 +158,7 @@ class RecommendationsView(APIView):
         for sj in scored:
             sj.job._match_score = sj.score
             sj.job._match_reason = sj.explanation
+            sj.job._match_factors = sj.factors or []
 
         jobs = [sj.job for sj in scored]
         serializer = JobSerializer(jobs, many=True, context={"saved_ids": saved_ids})

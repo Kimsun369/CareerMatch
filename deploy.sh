@@ -150,7 +150,7 @@ fi
 # 4. Vercel Frontend URL
 if [[ -z "${VERCEL_FRONTEND_URL:-}" ]]; then
   echo -e "\n${BOLD}--- 4. Vercel Frontend URL ---${NC}"
-  echo "If you have already deployed to Vercel, enter its URL (e.g. https://careermatch.vercel.app)."
+  echo "If you have already deployed to Vercel, enter its URL (e.g. https://careermatch-one.vercel.app)."
   read -r -p "Enter VERCEL_FRONTEND_URL (or press Enter to let Vercel CLI deploy): " input_vercel_url
   if [[ -n "$input_vercel_url" ]]; then
     VERCEL_FRONTEND_URL="${input_vercel_url%/}"
@@ -188,7 +188,10 @@ if $PYTHON_BIN Backend/manage.py showmigrations --list >/dev/null 2>&1; then
   ok "Database schema is up to date."
 
   info "Checking active job listings in database..."
-  JOB_COUNT=$($PYTHON_BIN Backend/manage.py shell -c "from jobs.models import Job; print(Job.objects.filter(is_active=True).count())" 2>/dev/null || echo "0")
+  # Django's shell prints an "objects imported automatically" notice before
+  # the command output on recent versions. Keep only the final count so the
+  # integer check below does not parse that notice as part of the value.
+  JOB_COUNT=$($PYTHON_BIN Backend/manage.py shell -c "from jobs.models import Job; print(Job.objects.filter(is_active=True).count())" --verbosity 0 2>/dev/null | tail -n 1 || echo "0")
   info "Currently active jobs in database: $JOB_COUNT"
 
   if [[ "$JOB_COUNT" -eq 0 ]]; then
@@ -223,20 +226,55 @@ ok "Frontend static build generated in Frontend/dist"
 
 if command -v vercel >/dev/null 2>&1; then
   info "Deploying to Vercel via CLI..."
-  if [[ -n "${VERCEL_TOKEN:-}" ]]; then
-    DEPLOY_OUTPUT=$(vercel --prod --yes --token "$VERCEL_TOKEN" 2>&1 || true)
-  else
-    DEPLOY_OUTPUT=$(vercel --prod --yes 2>&1 || true)
+  if [[ ! -f ".vercel/project.json" ]]; then
+    info "Frontend is not linked to a Vercel project yet. Select the existing CareerMatch project below."
+    if [[ -n "${VERCEL_SCOPE:-}" && -n "${VERCEL_PROJECT_NAME:-}" ]]; then
+      if [[ -n "${VERCEL_TOKEN:-}" ]]; then
+        vercel link --yes --team "$VERCEL_SCOPE" --project "$VERCEL_PROJECT_NAME" --token "$VERCEL_TOKEN"
+      else
+        vercel link --yes --team "$VERCEL_SCOPE" --project "$VERCEL_PROJECT_NAME"
+      fi
+    elif [[ -n "${VERCEL_TOKEN:-}" ]]; then
+      vercel link --token "$VERCEL_TOKEN"
+    else
+      vercel link
+    fi
   fi
+
+  if [[ -f ".vercel/project.json" ]]; then
+    info "Using the Vercel project linked to Frontend."
+    VERCEL_PROJECT_NAME="linked project"
+    VERCEL_ARGS=(--prod --yes)
+  else
+    err "No Vercel project is linked. Link the existing project, then rerun ./deploy.sh."
+    exit 1
+  fi
+  if [[ -n "${VERCEL_TOKEN:-}" ]]; then
+    if ! DEPLOY_OUTPUT=$(vercel "${VERCEL_ARGS[@]}" --token "$VERCEL_TOKEN" 2>&1); then
+      err "Vercel deployment failed for project '$VERCEL_PROJECT_NAME' in scope '${VERCEL_SCOPE:-current scope}'."
+      echo "$DEPLOY_OUTPUT"
+      exit 1
+    fi
+  else
+    if ! DEPLOY_OUTPUT=$(vercel "${VERCEL_ARGS[@]}" 2>&1); then
+      err "Vercel deployment failed for project '$VERCEL_PROJECT_NAME' in scope '${VERCEL_SCOPE:-current scope}'."
+      echo "$DEPLOY_OUTPUT"
+      exit 1
+    fi
+  fi
+  echo "$DEPLOY_OUTPUT"
   
   DETECTED_URL=$(echo "$DEPLOY_OUTPUT" | grep -Eo 'https://[^ ]+\.vercel\.app' | tail -n 1 || true)
-  if [[ -n "$DETECTED_URL" ]]; then
+  if [[ -n "$DETECTED_URL" && -z "$VERCEL_FRONTEND_URL" ]]; then
     VERCEL_FRONTEND_URL="$DETECTED_URL"
     sed -i '' '/VERCEL_FRONTEND_URL/d' "$CONFIG_FILE" 2>/dev/null || true
     echo "VERCEL_FRONTEND_URL=\"$VERCEL_FRONTEND_URL\"" >> "$CONFIG_FILE"
     ok "Deployed to Vercel: $VERCEL_FRONTEND_URL"
+  elif [[ -n "$VERCEL_FRONTEND_URL" ]]; then
+    ok "Vercel deployment completed for $VERCEL_FRONTEND_URL"
   else
-    info "Vercel output:\n$DEPLOY_OUTPUT"
+    warn "Vercel deployment completed, but no URL was detected in the CLI output."
+    echo "$DEPLOY_OUTPUT"
   fi
 else
   info "Vercel CLI not present. You can deploy Frontend/ on vercel.com directly."
@@ -252,7 +290,7 @@ if [[ -n "$RENDER_BACKEND_URL" ]]; then
   info "Testing Backend Health Check: $RENDER_BACKEND_URL/api/health/"
   HEALTH_RESP=$(curl -s -w "\n%{http_code}" "$RENDER_BACKEND_URL/api/health/" 2>/dev/null || echo "000")
   HTTP_STATUS=$(echo "$HEALTH_RESP" | tail -n 1)
-  BODY=$(echo "$HEALTH_RESP" | head -n -1)
+  BODY=$(printf '%s\n' "$HEALTH_RESP" | sed '$d')
 
   if [[ "$HTTP_STATUS" == "200" ]]; then
     ok "Backend health check succeeded: $BODY"

@@ -343,12 +343,85 @@ function JobCardSkeleton() {
   );
 }
 
+function MatchSummary({ job }: { job: Job }) {
+  const legacyFactors: NonNullable<Job["match_factors"]> = [];
+  const reason = job.match_reason?.toLowerCase() ?? "";
+  const hasFieldMatch = Object.values(FIELD_LABELS).some((label) =>
+    reason.includes(`interest in ${label.toLowerCase()}`)
+  );
+  const hasTypeMatch = Object.values(JOB_TYPE_LABELS).some((label) =>
+    reason.includes(`interest in ${label.toLowerCase()}`)
+  );
+
+  if (hasFieldMatch) legacyFactors.push({ category: "Field", status: "match", text: "Matched" });
+  else if (!job.field) legacyFactors.push({ category: "Field", status: "unknown", text: "Not listed" });
+  if (hasTypeMatch) legacyFactors.push({ category: "Job type", status: "match", text: "Matched" });
+  else if (!job.job_type) legacyFactors.push({ category: "Job type", status: "unknown", text: "Not listed" });
+  if (reason.includes("preferred location")) {
+    legacyFactors.push({ category: "Location", status: "match", text: "Matched" });
+  } else if (!job.country) {
+    legacyFactors.push({ category: "Location", status: "unknown", text: "Not listed" });
+  }
+
+  const factors = job.match_factors?.length ? job.match_factors : job.match_score != null ? legacyFactors : [];
+  if (factors.length === 0) return null;
+
+  const needsReview = factors.some((factor) => factor.status !== "match");
+  const factorLabel = (factor: (typeof factors)[number]) => {
+    const category = factor.category === "Job type" ? "Type" : factor.category;
+    const status = factor.status === "unknown"
+      ? "not listed"
+      : factor.status === "different"
+        ? "differs"
+        : "matches";
+    return `${category} ${status}`;
+  };
+
+  return (
+    <div
+      role="note"
+      aria-label={`Why this score: ${factors.map(factorLabel).join(", ")}`}
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 10,
+        padding: "12px 14px",
+        background: needsReview ? "#35151b" : "#102a22",
+        border: `1px solid ${needsReview ? "#ad3342" : "#28704f"}`,
+        borderLeft: `6px solid ${needsReview ? "#ff4f61" : "#37c98a"}`,
+      }}
+    >
+      <span aria-hidden="true" style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, display: "inline-flex", justifyContent: "center", alignItems: "center", background: needsReview ? "#ff4f61" : "#37c98a", color: "#101010", fontSize: 14, fontWeight: 900 }}>
+        {needsReview ? "!" : "✓"}
+      </span>
+      <div style={{ minWidth: 0 }}>
+        <p style={{ margin: "0 0 7px", color: needsReview ? "#ff8994" : "#72e0ad", fontSize: 12, fontWeight: 900, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+          {job.match_score != null ? `Why ${job.match_score}%?` : "Why this score?"}
+        </p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {factors.map((factor) => {
+            const attention = factor.status !== "match";
+            return (
+              <span
+                key={`${factor.category}-${factor.status}`}
+                style={{ padding: "5px 8px", borderRadius: 6, background: attention ? "#5b2029" : "#123c2d", border: `1px solid ${attention ? "#c43c4c" : "#28704f"}`, color: attention ? "#ffabb2" : "#91ecc0", fontSize: 12, lineHeight: 1.2, fontWeight: 800 }}
+              >
+                {factorLabel(factor)}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ScoreBadge({ score }: { score: number | undefined }) {
   if (score === undefined) return null;
   const cls = score >= 85 ? "score-high" : score >= 70 ? "score-mid" : "";
   return (
     <div className={`score-badge ${cls}`} title={`${score}% match`}>
-      {score}
+      {score}%
     </div>
   );
 }
@@ -366,6 +439,7 @@ function JobCard({
   onClick: () => void;
 }) {
   const org = job.organization || "Unknown";
+  const displayLocation = job.location || job.country;
   const accent = cardAccentColor(job.field, org);
   const fontSize = titleFontSize(job.title);
 
@@ -407,8 +481,7 @@ function JobCard({
           flexDirection: "column",
           justifyContent: "flex-end",
         }}>
-          {/* Match score badge top-right inside panel */}
-          {job.match_score !== undefined && (
+          {job.match_score != null && (
             <div style={{ position: "absolute", top: 12, right: 12 }}>
               <ScoreBadge score={job.match_score} />
             </div>
@@ -431,6 +504,8 @@ function JobCard({
         </div>
       </div>
 
+      <MatchSummary job={job} />
+
       {/* ── Card body ── */}
       <div style={{ padding: "12px 14px 14px" }}>
         {/* Org + save button */}
@@ -449,9 +524,9 @@ function JobCard({
 
         {/* Location + published date + closing date */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 12px", marginBottom: 8 }}>
-          {job.location ? (
+          {displayLocation ? (
             <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--muted-foreground)" }}>
-              <IconMapPin size={11} />{job.location}
+              <IconMapPin size={11} />{displayLocation}
             </span>
           ) : (
             <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Location not specified</span>
@@ -471,15 +546,6 @@ function JobCard({
           {job.job_type && <span className="chip">{JOB_TYPE_LABELS[job.job_type] ?? job.job_type}</span>}
           {job.field && <span className="chip">{FIELD_LABELS[job.field] ?? job.field}</span>}
         </div>
-
-        {/* Match reason */}
-        {job.match_reason && (
-          <div style={{ marginBottom: 10, padding: "7px 10px", background: accent + "12", borderRadius: 6, borderLeft: `2px solid ${accent}` }}>
-            <p style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, margin: 0 }}>
-              {job.match_reason}
-            </p>
-          </div>
-        )}
 
         {/* View details */}
         <button
@@ -1104,13 +1170,14 @@ function JobDetail({ jobId, onBack }: { jobId: string | number; onBack: () => vo
         )}
         {!loading && !error && job && (
           <>
-            {job.match_score !== undefined && (
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-                <ScoreBadge score={job.match_score} />
-                <div>
-                  <p className="section-label" style={{ marginBottom: 3 }}>Match score</p>
-                  {job.match_reason && <p style={{ fontSize: 13, color: "var(--muted-foreground)" }}>{job.match_reason}</p>}
-                </div>
+            {job.match_reason && (
+              <div style={{ marginBottom: 16, padding: "10px 12px", background: accent + "12", borderRadius: 8, borderLeft: `3px solid ${accent}` }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: accent, margin: "0 0 4px" }}>
+                  Why we suggested this
+                </p>
+                <p style={{ fontSize: 13, lineHeight: 1.5, color: "var(--muted-foreground)", margin: 0 }}>
+                  {job.match_reason}
+                </p>
               </div>
             )}
             <h1 className="font-display" style={{ fontSize: 24, fontWeight: 400, lineHeight: 1.25, marginBottom: 4, color: "var(--foreground)" }}>

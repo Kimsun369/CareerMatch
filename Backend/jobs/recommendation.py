@@ -49,9 +49,13 @@ class ScoredJob:
     job: Job
     score: int
     reasons: list[str]
+    explanation_text: str | None = None
+    factors: list[dict[str, str]] | None = None
 
     @property
     def explanation(self) -> str:
+        if self.explanation_text:
+            return self.explanation_text
         if not self.reasons:
             return "General match based on available job information."
         return " ".join(self.reasons)
@@ -131,8 +135,70 @@ def score_job(job: Job, prefs: UserPreference) -> ScoredJob:
     location_score, location_reason = _score_location(job, prefs)
 
     reasons = [r for r in (field_reason, type_reason, location_reason) if r]
+    explanation_parts = list(reasons)
+    factors: list[dict[str, str]] = []
+
+    if prefs.fields and "any" not in prefs.fields:
+        if not job.field:
+            explanation_parts.append("The job field isn't listed, so we couldn't compare it with your interests.")
+            factors.append({"category": "Field", "status": "unknown", "text": "Not listed"})
+        elif job.field not in prefs.fields:
+            selected_fields = ", ".join(_FIELD_LABELS.get(value, value) for value in prefs.fields)
+            job_field = _FIELD_LABELS.get(job.field, job.field)
+            explanation_parts.append(
+                f"This role is in {job_field}, outside your selected fields ({selected_fields})."
+            )
+            factors.append({"category": "Field", "status": "different", "text": f"Different from {selected_fields}"})
+        else:
+            matched_fields = ", ".join(_FIELD_LABELS.get(value, value) for value in prefs.fields if value == job.field)
+            factors.append({"category": "Field", "status": "match", "text": f"Matches {matched_fields}"})
+
+    if prefs.job_types:
+        if not job.job_type:
+            explanation_parts.append("Job type details aren't available for this listing.")
+            factors.append({"category": "Job type", "status": "unknown", "text": "Not listed"})
+        elif job.job_type not in prefs.job_types:
+            selected_types = ", ".join(_JOB_TYPE_LABELS.get(value, value) for value in prefs.job_types)
+            job_type = _JOB_TYPE_LABELS.get(job.job_type, job.job_type)
+            explanation_parts.append(
+                f"This role's type ({job_type}) differs from your preference ({selected_types})."
+            )
+            factors.append({"category": "Job type", "status": "different", "text": f"Different from {selected_types}"})
+        else:
+            job_type = _JOB_TYPE_LABELS.get(job.job_type, job.job_type)
+            factors.append({"category": "Job type", "status": "match", "text": f"Matches {job_type}"})
+
+    if prefs.location_type in ("cambodia", "abroad"):
+        preferred_location = "Cambodia" if prefs.location_type == "cambodia" else (prefs.country or "your selected country")
+        if not job.country:
+            explanation_parts.append(
+                "Location details aren't available, so we couldn't check this against your preference."
+            )
+            factors.append({"category": "Location", "status": "unknown", "text": "Not listed"})
+        else:
+            matches_location = (
+                job.country.strip().lower() == "cambodia"
+                if prefs.location_type == "cambodia"
+                else bool(prefs.country and job.country.strip().lower() == prefs.country.strip().lower())
+            )
+            if not matches_location:
+                explanation_parts.append(
+                    f"This role is listed in {job.country}, outside your preferred location ({preferred_location})."
+                )
+                factors.append({"category": "Location", "status": "different", "text": f"Outside {preferred_location}"})
+            else:
+                factors.append({"category": "Location", "status": "match", "text": f"Matches {preferred_location}"})
+
+    if not explanation_parts:
+        explanation_parts.append("Suggested based on your preferences and the job details available.")
     total = type_score + field_score + location_score
-    return ScoredJob(job=job, score=total, reasons=reasons)
+    return ScoredJob(
+        job=job,
+        score=total,
+        reasons=reasons,
+        explanation_text=" ".join(explanation_parts),
+        factors=factors,
+    )
 
 
 def get_recommendations(prefs: UserPreference, limit: int = 30) -> list[ScoredJob]:

@@ -3,6 +3,7 @@ export interface Job {
   title: string;
   organization: string;
   location: string | null;
+  country?: string | null;
   job_type: string | null;
   field: string | null;
   description: string;
@@ -13,6 +14,7 @@ export interface Job {
   source_url: string;
   match_score?: number;
   match_reason?: string;
+  match_factors?: { category: string; status: "match" | "unknown" | "different"; text: string }[];
   is_saved?: boolean;
 }
 

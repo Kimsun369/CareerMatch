@@ -19,6 +19,7 @@ class JobSerializer(serializers.ModelSerializer):
 
     match_score = serializers.SerializerMethodField()
     match_reason = serializers.SerializerMethodField()
+    match_factors = serializers.SerializerMethodField()
     is_saved = serializers.SerializerMethodField()
     # Expose source_name as 'source' for frontend compatibility.
     source = serializers.CharField(source="source_name", read_only=True)
@@ -44,6 +45,7 @@ class JobSerializer(serializers.ModelSerializer):
             "url",
             "match_score",
             "match_reason",
+            "match_factors",
             "is_saved",
         ]
 
@@ -53,6 +55,9 @@ class JobSerializer(serializers.ModelSerializer):
 
     def get_match_reason(self, obj) -> str | None:
         return getattr(obj, "_match_reason", None)
+
+    def get_match_factors(self, obj) -> list[dict[str, str]] | None:
+        return getattr(obj, "_match_factors", None)
 
     def get_is_saved(self, obj) -> bool | None:
         saved_ids = self.context.get("saved_ids")

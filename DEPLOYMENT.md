@@ -65,7 +65,7 @@ Once initial service accounts are linked, you can deploy or update the entire sy
    | `DATABASE_URL` | *(Your Neon connection string from Step 1)* |
    | `TELEGRAM_BOT_TOKEN` | *(Your bot token from @BotFather)* |
    | `RELIEFWEB_APPNAME` | `careermatch-fyp` |
-   | `CORS_ALLOWED_ORIGINS` | `https://careermatch.vercel.app` *(update once Vercel URL is created)* |
+   | `CORS_ALLOWED_ORIGINS` | `https://careermatch-one.vercel.app` *(update once Vercel URL is created)* |
    | `CSRF_TRUSTED_ORIGINS` | `https://*.onrender.com` |
 5. Click **Create Web Service**. Render will run `build.sh` (installing dependencies, collecting static files, and running migrations).
 6. Note your Render URL: `https://careermatch-backend.onrender.com`.
@@ -80,7 +80,7 @@ Once initial service accounts are linked, you can deploy or update the entire sy
    - **Output Directory**: `dist`
 4. Add Environment Variable:
    - `VITE_API_BASE_URL`: `https://careermatch-backend.onrender.com/api` *(replace with your real Render URL, without trailing slash)*
-5. Click **Deploy**. Note your Vercel URL: `https://careermatch.vercel.app`.
+5. Click **Deploy**. Note your Vercel URL: `https://careermatch-one.vercel.app`.
 6. *(Important)*: Back in Render, ensure `CORS_ALLOWED_ORIGINS` includes this exact Vercel URL.
 
 ### Step 4: Link Your Telegram Bot Menu Button
@@ -88,7 +88,7 @@ Once initial service accounts are linked, you can deploy or update the entire sy
 2. Send `/setmenubutton`.
 3. Select `@careermatch123bot`.
 4. Enter the button text: `Open CareerMatch`.
-5. Enter your Vercel URL: `https://careermatch.vercel.app`.
+5. Enter your Vercel URL: `https://careermatch-one.vercel.app`.
 6. Open your bot in Telegram and tap the menu button to verify that the Mini App loads directly inside Telegram!
 
 ---
