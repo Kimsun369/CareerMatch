@@ -438,18 +438,25 @@ function JobCard({
   async function shareJob(e: React.MouseEvent) {
     e.stopPropagation();
     const url = job.source_url || window.location.href;
+    const shareText = [
+      `💼 Position: ${job.title}`,
+      `🏢 Organization: ${org}`,
+      (job.location || job.country) ? `📍 Location: ${job.location || job.country}` : null,
+      job.closing_date ? `⏳ Apply by: ${job.closing_date}` : null,
+      `🔗 Apply: ${url}`,
+    ].filter(Boolean).join("\n");
     try {
       if (navigator.share) {
-        await navigator.share({ title: job.title, text: `${job.title} at ${org}`, url });
+        await navigator.share({ title: job.title, text: shareText });
       } else {
-        await navigator.clipboard.writeText(url);
+        await navigator.clipboard.writeText(shareText);
         setShareLabel("Link copied");
         window.setTimeout(() => setShareLabel("Share job"), 1800);
       }
     } catch (error) {
       if (error instanceof Error && error.name !== "AbortError") {
         try {
-          await navigator.clipboard.writeText(url);
+          await navigator.clipboard.writeText(shareText);
           setShareLabel("Link copied");
           window.setTimeout(() => setShareLabel("Share job"), 1800);
         } catch { /* Clipboard access can be unavailable in older browsers. */ }
@@ -922,7 +929,6 @@ function Home({ onSelectJob }: { onSelectJob: (job: Job) => void }) {
       <div
         style={{ flex: 1, overflowY: "auto", padding: "12px 16px 80px", display: "flex", flexDirection: "column", gap: 12 }}
         className="scrollbar-hide"
-        onScroll={(e) => e.currentTarget.style.setProperty("--feed-scroll", `${e.currentTarget.scrollTop}px`)}
       >
         {loading && Array.from({ length: 4 }).map((_, i) => <JobCardSkeleton key={i} />)}
         {!loading && error && <ErrorState message={error} onRetry={fetchAll} />}
@@ -1381,7 +1387,6 @@ function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
 
 // ── App ────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [checking, setChecking] = useState(true);
   const [curtainVisible, setCurtainVisible] = useState(true);
   const [curtainOpening, setCurtainOpening] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(false);
@@ -1395,22 +1400,19 @@ export default function App() {
       .then((profile) => {
         if (cancelled) return;
         setOnboardingDone(!!profile.preferences?.onboarding_completed);
-        setChecking(false);
       })
       .catch(() => {
         if (cancelled) return;
         // Can't reach backend — let them browse Home, onboarding will show when they go to For You
-        setChecking(false);
       });
     return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
-    if (checking) return;
-    const start = window.setTimeout(() => setCurtainOpening(true), 280);
-    const finish = window.setTimeout(() => setCurtainVisible(false), 2700);
+    const start = window.setTimeout(() => setCurtainOpening(true), 2000);
+    const finish = window.setTimeout(() => setCurtainVisible(false), 4300);
     return () => { window.clearTimeout(start); window.clearTimeout(finish); };
-  }, [checking]);
+  }, []);
 
   return (
     <>
@@ -1447,7 +1449,7 @@ export default function App() {
           <div className="curtain-valance" />
           <div className="curtain-panel curtain-left" />
           <div className="curtain-panel curtain-right" />
-          <div className="curtain-title"><span>CAREERMATCH</span><i /></div>
+          <div className="curtain-logo"><img src="/careermatch-logo.svg" alt="CareerMatch" /></div>
         </div>
       )}
     </>
