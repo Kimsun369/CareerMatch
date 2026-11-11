@@ -451,10 +451,12 @@ function JobCard({
       job.closing_date ? `- Closing date: ${job.closing_date}` : null,
       `- Source: ${job.source || "Unknown"}`,
       `- Apply: ${url}`,
-    ].filter(Boolean).join("\n");
+      "",
+      "Discover more jobs on CareerMatch: https://t.me/careermatch123bot",
+    ].filter((line) => line !== null).join("\n");
     try {
       if (navigator.share) {
-        await navigator.share({ title: positionTitle, text: shareText });
+        await navigator.share({ title: "Job opportunity from CareerMatch", text: shareText });
       } else {
         await navigator.clipboard.writeText(shareText);
         setShareLabel("Link copied");
