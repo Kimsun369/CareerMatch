@@ -438,16 +438,22 @@ function JobCard({
   async function shareJob(e: React.MouseEvent) {
     e.stopPropagation();
     const url = job.source_url || window.location.href;
+    const orgSuffix = [` at ${org}`, ` @ ${org}`].find((suffix) => job.title.toLocaleLowerCase().endsWith(suffix.toLocaleLowerCase()));
+    const positionTitle = orgSuffix
+      ? job.title.slice(0, -orgSuffix.length).trim()
+      : job.title;
     const shareText = [
-      `💼 Position: ${job.title}`,
-      `🏢 Organization: ${org}`,
-      (job.location || job.country) ? `📍 Location: ${job.location || job.country}` : null,
-      job.closing_date ? `⏳ Apply by: ${job.closing_date}` : null,
-      `🔗 Apply: ${url}`,
+      `- Position: ${positionTitle}`,
+      `- Organization: ${org}`,
+      (job.location || job.country) ? `- Location: ${job.location || job.country}` : null,
+      job.job_type ? `- Job type: ${JOB_TYPE_LABELS[job.job_type] ?? job.job_type}` : null,
+      job.closing_date ? `- Closing date: ${job.closing_date}` : null,
+      `- Source: ${job.source || "Unknown"}`,
+      `- Apply: ${url}`,
     ].filter(Boolean).join("\n");
     try {
       if (navigator.share) {
-        await navigator.share({ title: job.title, text: shareText });
+        await navigator.share({ title: positionTitle, text: shareText });
       } else {
         await navigator.clipboard.writeText(shareText);
         setShareLabel("Link copied");
