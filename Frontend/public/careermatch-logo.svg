@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="blue" x1="98" y1="86" x2="351" y2="454" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#12C8FF"/><stop offset=".38" stop-color="#086BFF"/><stop offset="1" stop-color="#032D9B"/>
+    </linearGradient>
+    <linearGradient id="arrow" x1="338" y1="68" x2="458" y2="214" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52F1FF"/><stop offset=".56" stop-color="#159CFF"/><stop offset="1" stop-color="#0751E8"/>
+    </linearGradient>
+    <linearGradient id="person" x1="209" y1="202" x2="266" y2="383" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff"/><stop offset="1" stop-color="#A9C8FF"/>
+    </linearGradient>
+    <linearGradient id="case" x1="251" y1="327" x2="459" y2="448" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0752D8"/><stop offset=".52" stop-color="#087DFF"/><stop offset="1" stop-color="#16D7E8"/>
+    </linearGradient>
+    <linearGradient id="check" x1="389" y1="402" x2="489" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#087DFF"/><stop offset="1" stop-color="#20E9B1"/>
+    </linearGradient>
+    <filter id="shadow" x="25" y="26" width="475" height="474" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="9"/><feOffset dy="8"/><feComponentTransfer><feFuncA type="linear" slope=".42"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <!-- Sweeping CareerMatch arrow -->
+    <path d="M414 157C390 91 327 58 252 58 145 58 70 137 70 247c0 112 79 192 186 192 43 0 81-12 112-35" stroke="#001A72" stroke-width="54" stroke-linecap="round"/>
+    <path d="M408 145C384 91 325 68 254 68 154 68 83 143 83 246c0 104 74 179 174 179 39 0 73-10 102-29" stroke="url(#blue)" stroke-width="36" stroke-linecap="round"/>
+    <path d="m364 86 70 23 53 41-70 53-45-21 30-30-45-40z" fill="url(#arrow)" stroke="#0878FF" stroke-width="5" stroke-linejoin="round"/>
+    <path d="m374 93 42 17" stroke="#8DFBFF" stroke-opacity=".75" stroke-width="5" stroke-linecap="round"/>
+    <!-- Three motion bars -->
+    <rect x="28" y="229" width="108" height="22" rx="11" fill="url(#blue)" stroke="#129CFF" stroke-width="3"/>
+    <rect x="40" y="263" width="112" height="22" rx="11" fill="url(#blue)" stroke="#129CFF" stroke-width="3"/>
+    <rect x="64" y="297" width="103" height="22" rx="11" fill="url(#blue)" stroke="#129CFF" stroke-width="3"/>
+    <!-- Candidate -->
+    <circle cx="254" cy="218" r="43" fill="url(#person)" stroke="#E7F2FF" stroke-width="5"/>
+    <path d="M185 337c4-48 31-75 69-75s65 27 69 75c-18 25-41 40-69 40s-51-15-69-40Z" fill="url(#person)" stroke="#DDEAFF" stroke-width="5" stroke-linejoin="round"/>
+    <!-- Briefcase -->
+    <path d="M324 311v-15c0-15 10-25 25-25h42c14 0 24 10 24 25v16" stroke="#062D9F" stroke-width="18" stroke-linecap="round"/>
+    <path d="M348 309v-13c0-5 3-8 8-8h27c5 0 8 3 8 8v13" stroke="#0878FF" stroke-width="8" stroke-linecap="round"/>
+    <path d="m274 330 167-34c17-4 30 7 34 23l21 85c4 16-5 29-21 33l-165 36c-17 4-30-5-34-22l-22-87c-4-16 4-30 20-34Z" fill="#031B66" stroke="#126CFF" stroke-width="7"/>
+    <path d="m284 333 155-31c13-3 22 4 25 17l17 68c3 12-3 22-16 25l-153 34c-13 3-22-4-25-17l-18-69c-3-12 3-24 15-27Z" fill="url(#case)"/>
+    <path d="m284 333 155-31c13-3 22 4 25 17" stroke="#66F7FF" stroke-opacity=".7" stroke-width="5" stroke-linecap="round"/>
+    <path d="M352 367v-14c0-6 4-10 10-11l26-5c6-1 10 2 11 8l3 15-50 7Z" fill="#FFB400" stroke="#FFD34F" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M363 359h23" stroke="#08266F" stroke-width="7" stroke-linecap="round"/>
+    <!-- Verified badge -->
+    <circle cx="425" cy="402" r="48" fill="#001B63" stroke="url(#check)" stroke-width="12"/>
+    <path d="m402 402 15 15 31-34" stroke="#fff" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

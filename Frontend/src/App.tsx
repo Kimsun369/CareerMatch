@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { api } from "./api";
 import type { Job, UserPreferences } from "./types";
 import { COUNTRIES } from "./countries";
+import { getTelegramUser, isTelegramEnvironment } from "./telegram";
 
 // ── Card accent colours ───────────────────────────────────────────────────
 // Each job gets a bold accent colour block behind the dark title panel.
@@ -29,16 +30,6 @@ function cardAccentColor(field: string | null, org: string): string {
   let hash = 0;
   for (let i = 0; i < org.length; i++) hash = (hash * 31 + org.charCodeAt(i)) | 0;
   return FALLBACK_ACCENTS[Math.abs(hash) % FALLBACK_ACCENTS.length];
-}
-
-/** Shrink font size for longer titles so they still fit in the panel. */
-function titleFontSize(title: string): number {
-  const len = title.length;
-  if (len < 22) return 24;
-  if (len < 40) return 20;
-  if (len < 60) return 16;
-  if (len < 90) return 13;
-  return 11;
 }
 
 // ── Icons ────────────────────────────────────────────────────────────────
@@ -138,6 +129,15 @@ function IconExternalLink({ size = 13 }: { size?: number }) {
       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
       <polyline points="15 3 21 3 21 9" />
       <line x1="10" y1="14" x2="21" y2="3" />
+    </svg>
+  );
+}
+
+function IconShare({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+      <path d="m8.7 10.7 6.6-4.4M8.7 13.3l6.6 4.4" />
     </svg>
   );
 }
@@ -381,30 +381,22 @@ function MatchSummary({ job }: { job: Job }) {
     <div
       role="note"
       aria-label={`Why this score: ${factors.map(factorLabel).join(", ")}`}
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 10,
-        padding: "12px 14px",
-        background: needsReview ? "#35151b" : "#102a22",
-        border: `1px solid ${needsReview ? "#ad3342" : "#28704f"}`,
-        borderLeft: `6px solid ${needsReview ? "#ff4f61" : "#37c98a"}`,
-      }}
+      className={`job-match-summary ${needsReview ? "needs-review" : "is-match"}`}
     >
-      <span aria-hidden="true" style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, display: "inline-flex", justifyContent: "center", alignItems: "center", background: needsReview ? "#ff4f61" : "#37c98a", color: "#101010", fontSize: 14, fontWeight: 900 }}>
+      <span aria-hidden="true" className="job-match-icon">
         {needsReview ? "!" : "✓"}
       </span>
-      <div style={{ minWidth: 0 }}>
-        <p style={{ margin: "0 0 7px", color: needsReview ? "#ff8994" : "#72e0ad", fontSize: 12, fontWeight: 900, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+      <div className="job-match-content">
+        <p className="job-match-title">
           {job.match_score != null ? `Why ${job.match_score}%?` : "Why this score?"}
         </p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        <div className="job-match-factors">
           {factors.map((factor) => {
             const attention = factor.status !== "match";
             return (
               <span
                 key={`${factor.category}-${factor.status}`}
-                style={{ padding: "5px 8px", borderRadius: 6, background: attention ? "#5b2029" : "#123c2d", border: `1px solid ${attention ? "#c43c4c" : "#28704f"}`, color: attention ? "#ffabb2" : "#91ecc0", fontSize: 12, lineHeight: 1.2, fontWeight: 800 }}
+                className={`job-match-factor ${attention ? "attention" : "matched"}`}
               >
                 {factorLabel(factor)}
               </span>
@@ -426,7 +418,7 @@ function ScoreBadge({ score }: { score: number | undefined }) {
   );
 }
 
-/** Typographic card: big bold title on dark panel + coloured accent block behind it */
+/** Premium job summary shared by the Home, For You, and Saved feeds. */
 function JobCard({
   job,
   isSaved,
@@ -441,120 +433,81 @@ function JobCard({
   const org = job.organization || "Unknown";
   const displayLocation = job.location || job.country;
   const accent = cardAccentColor(job.field, org);
-  const fontSize = titleFontSize(job.title);
+  const [shareLabel, setShareLabel] = useState("Share job");
+
+  async function shareJob(e: React.MouseEvent) {
+    e.stopPropagation();
+    const url = job.source_url || window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: job.title, text: `${job.title} at ${org}`, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        setShareLabel("Link copied");
+        window.setTimeout(() => setShareLabel("Share job"), 1800);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name !== "AbortError") {
+        try {
+          await navigator.clipboard.writeText(url);
+          setShareLabel("Link copied");
+          window.setTimeout(() => setShareLabel("Share job"), 1800);
+        } catch { /* Clipboard access can be unavailable in older browsers. */ }
+      }
+    }
+  }
+
+  const posted = job.published_date
+    ? new Date(job.published_date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+    : null;
+  const closing = job.closing_date
+    ? new Date(job.closing_date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+    : null;
 
   return (
     <div
       onClick={onClick}
-      style={{
-        flexShrink: 0,
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius)",
-        overflow: "hidden",
-        cursor: "pointer",
-        transition: "border-color 0.2s",
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.borderColor = accent + "88")}
-      onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+      className="job-card job-card-premium feed-card"
+      style={{ "--job-accent": accent } as React.CSSProperties}
     >
-      {/* ── Typographic header ── */}
-      <div style={{ position: "relative", padding: "14px 14px 22px", background: "#0c111d" }}>
-        {/* Accent block — peeks out bottom-right behind the dark panel */}
-        <div style={{
-          position: "absolute",
-          right: 8,
-          bottom: 8,
-          left: 22,
-          top: 22,
-          background: accent,
-          borderRadius: 8,
-        }} />
-        {/* Dark title panel */}
-        <div style={{
-          position: "relative",
-          background: "#0d1117",
-          borderRadius: 8,
-          padding: "18px 16px",
-          minHeight: 140,
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "flex-end",
-        }}>
-          {job.match_score != null && (
-            <div style={{ position: "absolute", top: 12, right: 12 }}>
-              <ScoreBadge score={job.match_score} />
-            </div>
-          )}
-          <p style={{
-            fontSize,
-            fontWeight: 800,
-            color: "#ffffff",
-            textTransform: "uppercase",
-            lineHeight: 1.15,
-            letterSpacing: "-0.01em",
-            margin: 0,
-            display: "-webkit-box",
-            WebkitLineClamp: 5,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
-          }}>
-            {job.title}
-          </p>
+      <div className="job-card-heading">
+        <div className="job-card-kicker"><span /> Open opportunity</div>
+        <div className="job-card-title-row">
+          <h2>{job.title}</h2>
+          {job.match_score != null && <ScoreBadge score={job.match_score} />}
         </div>
       </div>
 
       <MatchSummary job={job} />
 
-      {/* ── Card body ── */}
-      <div style={{ padding: "12px 14px 14px" }}>
-        {/* Org + save button */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-          <p style={{ fontSize: 13, color: "var(--primary)", fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-            {org}
-          </p>
-          <button
-            style={{ background: "none", border: "none", padding: "0 0 0 8px", cursor: "pointer", color: isSaved ? accent : "var(--muted-foreground)", flexShrink: 0, transition: "color 0.15s" }}
-            onClick={onToggleSave}
-            aria-label={isSaved ? "Remove from saved" : "Save job"}
-          >
-            <IconBookmark size={16} filled={isSaved} />
+      <div className="job-card-content">
+        <div className="job-card-source-row">
+          <div className="source-monogram" aria-hidden="true"><IconBriefcase size={18} /></div>
+          <div className="source-copy"><span>Organisation · {job.source || "CareerMatch"}</span><strong>{org}</strong></div>
+          <button className={`save-pill ${isSaved ? "is-saved" : ""}`} onClick={onToggleSave} aria-label={isSaved ? "Remove from saved" : "Save job"}>
+            <IconBookmark size={17} filled={isSaved} /> {isSaved ? "Saved" : "Save job"}
           </button>
         </div>
 
-        {/* Location + published date + closing date */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 12px", marginBottom: 8 }}>
-          {displayLocation ? (
-            <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--muted-foreground)" }}>
-              <IconMapPin size={11} />{displayLocation}
-            </span>
-          ) : (
-            <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Location not specified</span>
-          )}
-          {job.published_date && (
-            <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-              Posted {job.published_date}
-            </span>
-          )}
-          {job.closing_date && (
-            <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Closes {job.closing_date}</span>
-          )}
+        <div className="job-highlight-grid">
+          <div className="job-highlight location-highlight"><span><IconMapPin size={17} /> Location</span><strong>{displayLocation || "Not provided"}</strong></div>
+          <div className="job-highlight type-highlight"><span><IconBriefcase size={17} /> Job type</span><strong>{job.job_type ? (JOB_TYPE_LABELS[job.job_type] ?? job.job_type) : "Not provided"}</strong></div>
         </div>
 
-        {/* Tags */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-          {job.job_type && <span className="chip">{JOB_TYPE_LABELS[job.job_type] ?? job.job_type}</span>}
-          {job.field && <span className="chip">{FIELD_LABELS[job.field] ?? job.field}</span>}
+        {job.description && <p className="job-description-preview">{job.description.replace(/\s+/g, " ").trim()}</p>}
+
+        <div className="job-facts-panel">
+          <div className="job-fact"><span>Sector</span><strong>{job.field ? (FIELD_LABELS[job.field] ?? job.field) : "Not provided"}</strong></div>
+          <div className="job-fact"><span>Closing date</span><strong>{closing || "Not provided"}</strong></div>
+          <div className="job-fact"><span>Posted</span><strong>{posted || "Not provided"}</strong></div>
+          {job.skills?.length > 0 && <div className="job-fact job-skills"><span>Skills</span><strong>{job.skills.slice(0, 5).join(" · ")}</strong></div>}
         </div>
 
-        {/* View details */}
-        <button
-          className="btn-outline"
-          style={{ width: "100%", padding: "8px 0", fontSize: 13, borderColor: accent + "55", color: accent }}
-          onClick={(e) => { e.stopPropagation(); onClick(); }}
-        >
-          View details
-        </button>
+        <div className="job-card-footer"><span>From {job.source || "job source"}</span>{job.match_score != null && <span>{job.match_score}% match</span>}</div>
+        <div className="job-card-actions">
+          <button className="job-action-primary" onClick={(e) => { e.stopPropagation(); onClick(); }}>View job details <IconExternalLink size={15} /></button>
+          <button className="job-action-share" onClick={shareJob}><IconShare size={17} /> {shareLabel}</button>
+        </div>
       </div>
     </div>
   );
@@ -564,9 +517,7 @@ function JobCard({
 function Logo() {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      <div style={{ width: 32, height: 32, background: "var(--primary)", borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <IconBriefcase size={16} />
-      </div>
+      <img className="brand-logo" src="/careermatch-logo.svg" alt="" aria-hidden="true" />
       <span style={{ fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 18, color: "var(--foreground)", letterSpacing: "-0.01em" }}>
         CareerMatch
       </span>
@@ -971,6 +922,7 @@ function Home({ onSelectJob }: { onSelectJob: (job: Job) => void }) {
       <div
         style={{ flex: 1, overflowY: "auto", padding: "12px 16px 80px", display: "flex", flexDirection: "column", gap: 12 }}
         className="scrollbar-hide"
+        onScroll={(e) => e.currentTarget.style.setProperty("--feed-scroll", `${e.currentTarget.scrollTop}px`)}
       >
         {loading && Array.from({ length: 4 }).map((_, i) => <JobCardSkeleton key={i} />)}
         {!loading && error && <ErrorState message={error} onRetry={fetchAll} />}
@@ -1313,6 +1265,15 @@ function Profile({ onResetPreferences }: { onResetPreferences: () => void }) {
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
+  const telegramUser = getTelegramUser();
+  const verifiedTelegramView = !!profile && isTelegramEnvironment() && !!telegramUser && String(telegramUser.id) === String(profile.telegram_id);
+  const fullName = profile
+    ? [profile.first_name || (verifiedTelegramView ? telegramUser?.first_name : ""), profile.last_name || (verifiedTelegramView ? telegramUser?.last_name : "")].filter(Boolean).join(" ")
+    : "";
+  const displayName = fullName || (profile?.username ? `@${profile.username}` : profile?.telegram_id ? `User ${profile.telegram_id}` : "CareerMatch user");
+  const username = profile?.username || (verifiedTelegramView ? telegramUser?.username : undefined);
+  const photoUrl = verifiedTelegramView && telegramUser?.photo_url?.startsWith("https://") ? telegramUser.photo_url : undefined;
+
   return (
     <div style={{ height: "100%", overflowY: "auto" }} className="scrollbar-hide">
       <div style={{ padding: "20px 20px 0" }}>
@@ -1335,15 +1296,25 @@ function Profile({ onResetPreferences }: { onResetPreferences: () => void }) {
       )}
       {!loading && !error && profile && (
         <>
-          <div style={{ margin: "0 20px 20px", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "20px", display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ width: 48, height: 48, borderRadius: 24, background: "rgba(79,127,255,0.1)", border: "2px solid rgba(79,127,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)" }}>
-              <IconUser size={20} />
+          <div className="profile-identity-card">
+            <div className="profile-avatar">
+              <IconUser size={28} />
+              {photoUrl && <img src={photoUrl} alt={`${displayName}'s Telegram profile`} referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = "none"; }} />}
             </div>
-            <div>
-              <p style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>
-                {profile.first_name || profile.username || `User ${profile.telegram_id}`}
-              </p>
-              <p style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Connected via Telegram</p>
+            <div className="profile-identity-copy">
+              <div className="profile-name-line">
+                <strong>{displayName}</strong>
+                {verifiedTelegramView && telegramUser?.is_premium && <span className="telegram-premium">Premium</span>}
+              </div>
+              {username ? (
+                <a className="profile-username" href={`https://t.me/${username}`} target="_blank" rel="noopener noreferrer">@{username}</a>
+              ) : (
+                <span className="profile-connection">{verifiedTelegramView ? "Connected via Telegram" : "Browser preview account"}</span>
+              )}
+              <div className="profile-account-meta">
+                {verifiedTelegramView && telegramUser?.language_code && <span>Language · {telegramUser.language_code.toUpperCase()}</span>}
+                {profile.telegram_id && <span>{verifiedTelegramView ? "Telegram ID" : "Preview ID"} · {profile.telegram_id}</span>}
+              </div>
             </div>
           </div>
 
@@ -1411,6 +1382,8 @@ function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
 // ── App ────────────────────────────────────────────────────────────────────
 export default function App() {
   const [checking, setChecking] = useState(true);
+  const [curtainVisible, setCurtainVisible] = useState(true);
+  const [curtainOpening, setCurtainOpening] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(false);
   const [tab, setTab] = useState<Tab>("home");
   const [detailJobId, setDetailJobId] = useState<string | number | null>(null);
@@ -1432,42 +1405,51 @@ export default function App() {
     return () => { cancelled = true; };
   }, []);
 
-  if (checking) {
-    return (
-      <div style={{ height: "100%", maxWidth: 480, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--background)" }}>
-        <Logo />
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (checking) return;
+    const start = window.setTimeout(() => setCurtainOpening(true), 280);
+    const finish = window.setTimeout(() => setCurtainVisible(false), 2700);
+    return () => { window.clearTimeout(start); window.clearTimeout(finish); };
+  }, [checking]);
 
   return (
-    <div style={{ height: "100%", maxWidth: 480, margin: "0 auto", position: "relative", overflow: "hidden", background: "var(--background)" }}>
-      {detailJobId !== null ? (
-        <JobDetail jobId={detailJobId} onBack={() => setDetailJobId(null)} />
-      ) : (
-        <>
-          <div style={{ height: "100%", paddingBottom: 60 }}>
-            {tab === "home"    && <Home onSelectJob={(job) => setDetailJobId(job.id)} />}
-            {tab === "foryou"  && (
-              <ForYou
-                onSelectJob={(job) => setDetailJobId(job.id)}
-                onboardingDone={onboardingDone}
-                onOnboardingComplete={() => { setOnboardingDone(true); }}
-              />
-            )}
-            {tab === "saved"   && <SavedJobs onSelectJob={(job) => setDetailJobId(job.id)} />}
-            {tab === "profile" && (
-              <Profile
-                onResetPreferences={() => {
-                  setOnboardingDone(false);
-                  setTab("foryou");
-                }}
-              />
-            )}
-          </div>
-          <BottomNav tab={tab} setTab={setTab} />
-        </>
+    <>
+      <div style={{ height: "100%", maxWidth: 480, margin: "0 auto", position: "relative", overflow: "hidden", background: "var(--background)" }}>
+        {detailJobId !== null ? (
+          <JobDetail jobId={detailJobId} onBack={() => setDetailJobId(null)} />
+        ) : (
+          <>
+            <div style={{ height: "100%", paddingBottom: 60 }}>
+              {tab === "home"    && <Home onSelectJob={(job) => setDetailJobId(job.id)} />}
+              {tab === "foryou"  && (
+                <ForYou
+                  onSelectJob={(job) => setDetailJobId(job.id)}
+                  onboardingDone={onboardingDone}
+                  onOnboardingComplete={() => { setOnboardingDone(true); }}
+                />
+              )}
+              {tab === "saved"   && <SavedJobs onSelectJob={(job) => setDetailJobId(job.id)} />}
+              {tab === "profile" && (
+                <Profile
+                  onResetPreferences={() => {
+                    setOnboardingDone(false);
+                    setTab("foryou");
+                  }}
+                />
+              )}
+            </div>
+            <BottomNav tab={tab} setTab={setTab} />
+          </>
+        )}
+      </div>
+      {curtainVisible && (
+        <div className={`curtain-intro ${curtainOpening ? "is-opening" : ""}`} aria-hidden="true">
+          <div className="curtain-valance" />
+          <div className="curtain-panel curtain-left" />
+          <div className="curtain-panel curtain-right" />
+          <div className="curtain-title"><span>CAREERMATCH</span><i /></div>
+        </div>
       )}
-    </div>
+    </>
   );
 }

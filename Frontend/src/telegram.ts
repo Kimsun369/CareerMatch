@@ -21,11 +21,24 @@
 
 interface TelegramWebApp {
   initData: string;
+  initDataUnsafe?: {
+    user?: TelegramWebAppUser;
+  };
   ready: () => void;
   expand: () => void;
   setHeaderColor?: (color: string) => void;
   setBackgroundColor?: (color: string) => void;
   themeParams?: Record<string, string>;
+}
+
+export interface TelegramWebAppUser {
+  id: number;
+  first_name: string;
+  last_name?: string;
+  username?: string;
+  language_code?: string;
+  is_premium?: boolean;
+  photo_url?: string;
 }
 
 declare global {
@@ -38,6 +51,11 @@ const DEV_TELEGRAM_ID_KEY = "careermatch:dev-telegram-id";
 
 function getWebApp(): TelegramWebApp | null {
   return window.Telegram?.WebApp ?? null;
+}
+
+/** Telegram display details; use backend-verified identity before showing them. */
+export function getTelegramUser(): TelegramWebAppUser | null {
+  return getWebApp()?.initDataUnsafe?.user ?? null;
 }
 
 /** True when actually running inside the Telegram client. */

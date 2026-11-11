@@ -1,6 +1,9 @@
 {
   "title": "CareerMatch — Job Recommendations",
   "description": "CareerMatch is a Telegram Mini App connecting university students with relevant job opportunities powered by ReliefWeb.",
+  "icons": {
+    "icon": "/careermatch-logo.svg"
+  },
   "robots": {
     "index": false
   },
