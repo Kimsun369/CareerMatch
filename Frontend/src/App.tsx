@@ -927,7 +927,7 @@ function Home({ onSelectJob }: { onSelectJob: (job: Job) => void }) {
       </div>
       <div className="divider" />
       <div
-        style={{ flex: 1, overflowY: "auto", padding: "12px 16px 80px", display: "flex", flexDirection: "column", gap: 12 }}
+        style={{ flex: 1, overflowY: "auto", padding: "16px 16px 88px", display: "flex", flexDirection: "column", gap: 22 }}
         className="scrollbar-hide"
       >
         {loading && Array.from({ length: 4 }).map((_, i) => <JobCardSkeleton key={i} />)}
@@ -1024,7 +1024,7 @@ function ForYou({
       </div>
       <div className="divider" />
       <div
-        style={{ flex: 1, overflowY: "auto", padding: "12px 16px 80px", display: "flex", flexDirection: "column", gap: 12 }}
+        style={{ flex: 1, overflowY: "auto", padding: "16px 16px 88px", display: "flex", flexDirection: "column", gap: 22 }}
         className="scrollbar-hide"
       >
         {loading && Array.from({ length: 4 }).map((_, i) => <JobCardSkeleton key={i} />)}
@@ -1224,7 +1224,7 @@ function SavedJobs({ onSelectJob }: { onSelectJob: (job: Job) => void }) {
         <h2 className="font-display" style={{ fontSize: 22, fontWeight: 400, color: "var(--foreground)" }}>Saved Jobs</h2>
       </div>
       <div className="divider" />
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px 80px", display: "flex", flexDirection: "column", gap: 12 }} className="scrollbar-hide">
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 88px", display: "flex", flexDirection: "column", gap: 22 }} className="scrollbar-hide">
         {loading && Array.from({ length: 3 }).map((_, i) => <JobCardSkeleton key={i} />)}
         {!loading && error && <ErrorState message={error} onRetry={fetchSaved} />}
         {!loading && !error && jobs.length === 0 && (
