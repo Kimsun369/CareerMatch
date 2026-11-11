@@ -412,8 +412,9 @@ function ScoreBadge({ score }: { score: number | undefined }) {
   if (score === undefined) return null;
   const cls = score >= 85 ? "score-high" : score >= 70 ? "score-mid" : "";
   return (
-    <div className={`score-badge ${cls}`} title={`${score}% match`}>
-      {score}%
+    <div className={`score-badge score-prominent ${cls}`} aria-label={`${score}% match`} title={`${score}% match`}>
+      <span className="score-value">{score}%</span>
+      <span className="score-caption">MATCH</span>
     </div>
   );
 }
@@ -516,7 +517,7 @@ function JobCard({
           {job.skills?.length > 0 && <div className="job-fact job-skills"><span>Skills</span><strong>{job.skills.slice(0, 5).join(" · ")}</strong></div>}
         </div>
 
-        <div className="job-card-footer"><span>From {job.source || "job source"}</span>{job.match_score != null && <span>{job.match_score}% match</span>}</div>
+        <div className="job-card-footer"><span>From {job.source || "job source"}</span></div>
         <div className="job-card-actions">
           <button className="job-action-primary" onClick={(e) => { e.stopPropagation(); onClick(); }}>View job details <IconExternalLink size={15} /></button>
           <button className="job-action-share" onClick={shareJob}><IconShare size={17} /> {shareLabel}</button>

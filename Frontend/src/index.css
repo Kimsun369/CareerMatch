@@ -230,7 +230,7 @@ body {
   line-height: 1.22;
   overflow-wrap: anywhere;
 }
-.job-card-title-row .score-badge { width: 42px; height: 42px; font-size: 12px; }
+.job-card-title-row .score-badge { width: 76px; height: 60px; }
 
 .job-card-content { padding: 16px 18px 18px; }
 .job-card-source-row { display: flex; align-items: center; gap: 11px; min-width: 0; margin-bottom: 16px; }
@@ -406,16 +406,31 @@ body {
   flex-shrink: 0;
 }
 
+.score-prominent {
+  width: 76px;
+  height: 60px;
+  flex-direction: column;
+  gap: 1px;
+  border-radius: 16px;
+  background: rgba(79,127,255,.12);
+  color: #b8ccff;
+  border: 1px solid rgba(117,154,255,.35);
+}
+.score-value { font-size: 19px; font-weight: 800; line-height: 1; letter-spacing: -.035em; }
+.score-caption { font-size: 8px; font-weight: 750; letter-spacing: .13em; line-height: 1; }
+
 .score-high {
-  background: rgba(34, 197, 94, 0.1);
-  color: #4ade80;
-  border-color: rgba(34, 197, 94, 0.25);
+  background: linear-gradient(145deg, #145b43, #0b392f);
+  color: #baffda;
+  border-color: #49e49a;
+  box-shadow: 0 0 0 3px rgba(53,220,142,.12), 0 0 22px rgba(53,220,142,.2), inset 0 1px rgba(255,255,255,.16);
 }
 
 .score-mid {
-  background: rgba(251, 191, 36, 0.1);
-  color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.25);
+  background: linear-gradient(145deg, #5a4215, #352b18);
+  color: #ffe2a0;
+  border-color: #e9b94c;
+  box-shadow: 0 0 0 2px rgba(233,185,76,.1);
 }
 
 .btn-primary {
